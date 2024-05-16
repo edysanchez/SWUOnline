@@ -1,3 +1,3 @@
 mkdir SWUOnline/HostFiles
-cp SWUOnline/docker/* SWUOnline/HostFiles
+cp SWUOnline/docker/assets SWUOnline/HostFiles
 apache2-foreground

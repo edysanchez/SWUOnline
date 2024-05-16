@@ -7,6 +7,8 @@ services:
     restart: always
     volumes:
       - "./:/var/www/html/SWUOnline"
+      - "./docker/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini"
+
     command: bash "/var/www/html/SWUOnline/docker-entrypoint.sh"
     ports:
       - "8080:80"
@@ -34,6 +36,8 @@ services:
       MYSQL_DATABASE: "swuonline"
     volumes:
       - ./Database:/docker-entrypoint-initdb.d
+    ports:
+      - "3001:3306"
   phpmyadmin:
     image: phpmyadmin:latest
     restart: always
