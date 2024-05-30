@@ -213,10 +213,30 @@ function PrependLayer($cardID, $player, $parameter, $target = "-", $additionalCo
     return count($layers);//How far it is from the end
 }
 
-function AddLayer($cardID, $player, $parameter, $target = "-", $additionalCosts = "-", $uniqueID = "-")
+function IsAbilityLayer($cardID)
+{
+  return $cardID == "TRIGGER" || $cardID == "PLAYABILITY" || $cardID == "ATTACKABILITY" || $cardID == "ACTIVATEDABILITY" || $cardID == "AFTERPLAYABILITY";
+}
+
+function AddLayer($cardID, $player, $parameter, $target = "-", $additionalCosts = "-", $uniqueID = "-", $append = false)
 {
   global $layers, $dqState;
   //Layers are on a stack, so you need to push things on in reverse order
+  if($append) {
+    array_push($layers, $cardID);
+    array_push($layers, $player);
+    array_push($layers, $parameter);
+    array_push($layers, $target);
+    array_push($layers, $additionalCosts);
+    array_push($layers, $uniqueID);
+    array_push($layers, GetUniqueId());
+    if(IsAbilityLayer($cardID))
+    {
+      $orderableIndex = intval($dqState[8]);
+      if($orderableIndex == -1) $dqState[8] = LayerPieces();
+    }
+    return LayerPieces();
+  }
   array_unshift($layers, GetUniqueId());
   array_unshift($layers, $uniqueID);
   array_unshift($layers, $additionalCosts);
@@ -224,13 +244,11 @@ function AddLayer($cardID, $player, $parameter, $target = "-", $additionalCosts 
   array_unshift($layers, $parameter);
   array_unshift($layers, $player);
   array_unshift($layers, $cardID);
-  if($cardID == "TRIGGER" || $cardID == "PLAYABILITY")
+  if(IsAbilityLayer($cardID))
   {
-    /* TODO: Fix layer reordering
     $orderableIndex = intval($dqState[8]);
     if($orderableIndex == -1) $dqState[8] = 0;
     else $dqState[8] += LayerPieces();
-    */
   }
   else $dqState[8] = -1;//If it's not a trigger, it's not orderable
   return count($layers);//How far it is from the end
@@ -312,12 +330,10 @@ function CloseDecisionQueue()
 
 function ShouldHoldPriorityNow($player)
 {
-  global $layerPriority, $layers;
-  if($layerPriority[$player - 1] != "1") return false;
-  $currentLayer = $layers[count($layers) - LayerPieces()];
-  $layerType = CardType($currentLayer);
-  if(HoldPrioritySetting($player) == 3 && $layerType != "AA" && $layerType != "W") return false;
-  return true;
+  global $layerPriority, $layers, $currentPlayer, $dqState;
+  if($player != $currentPlayer) return false;
+  if(count($layers) == LayerPieces()) return false;
+  return $dqState[8] > 0;
 }
 
 function SkipHoldingPriorityNow($player)
@@ -405,32 +421,34 @@ function ContinueDecisionQueue($lastResult = "")
         else if($cardID == "LAYER") ProcessLayer($player, $parameter);
         else if($cardID == "FINALIZECHAINLINK") FinalizeChainLink($parameter);
         else if($cardID == "DEFENDSTEP") { $turn[0] = "A"; $currentPlayer = $mainPlayer; }
-        else if($cardID == "TRIGGER") {
-          ProcessTrigger($player, $parameter, $uniqueID, $target);
-          ProcessDecisionQueue();
-        } 
-        else if($cardID == "PLAYABILITY") {
+        else if(IsAbilityLayer($cardID)) {
           if(count($combatChain) > 0) {
             AddAfterCombatLayer($cardID, $player, $parameter, $target, $additionalCosts, $uniqueID);
             ProcessDecisionQueue();
           } else {
             global $CS_AbilityIndex;
-            $cardID = $parameter;
-            $subparamArr = explode("!", $target);
-            $from = $subparamArr[0];
-            $resourcesPaid = $subparamArr[1];
-            $target = count($subparamArr) > 2 ? $subparamArr[2] : "-";
-            $additionalCosts = count($subparamArr) > 3 ? $subparamArr[3] : "-";
-            $abilityIndex = count($subparamArr) > 4 ? $subparamArr[4] : -1;
-            $playIndex = count($subparamArr) > 5 ? $subparamArr[5] : -1;
-            SetClassState($player, $CS_AbilityIndex, $abilityIndex);
-            SetClassState($player, $CS_PlayIndex, $playIndex);
-            $playText = PlayAbility($cardID, $from, $resourcesPaid, $target, $additionalCosts);
-            WriteLog("Resolving play ability of " . CardLink($cardID, $cardID) . ($playText != "" ? ": " : ".") . $playText);
-            if($from == "EQUIP") {
-              EquipPayAdditionalCosts(FindCharacterIndex($player, $cardID), "EQUIP");
+            if($cardID == "TRIGGER") {
+              ProcessTrigger($player, $parameter, $uniqueID, $target);
+              ProcessDecisionQueue();
             }
-            ProcessDecisionQueue();
+            else {
+              $cardID = $parameter;
+              $subparamArr = explode("!", $target);
+              $from = $subparamArr[0];
+              $resourcesPaid = $subparamArr[1];
+              $target = count($subparamArr) > 2 ? $subparamArr[2] : "-";
+              $additionalCosts = count($subparamArr) > 3 ? $subparamArr[3] : "-";
+              $abilityIndex = count($subparamArr) > 4 ? $subparamArr[4] : -1;
+              $playIndex = count($subparamArr) > 5 ? $subparamArr[5] : -1;
+                SetClassState($player, $CS_AbilityIndex, $abilityIndex);
+                SetClassState($player, $CS_PlayIndex, $playIndex);
+                $playText = PlayAbility($cardID, $from, $resourcesPaid, $target, $additionalCosts);
+                if($from != "PLAY") WriteLog("Resolving play ability of " . CardLink($cardID, $cardID) . ($playText != "" ? ": " : ".") . $playText);
+                if($from == "EQUIP") {
+                  EquipPayAdditionalCosts(FindCharacterIndex($player, $cardID), "EQUIP");
+                }
+                ProcessDecisionQueue();
+            }
           }
         }
         else {
@@ -520,8 +538,8 @@ function ContinueDecisionQueue($lastResult = "")
 
 function AddAfterCombatLayer($cardID, $player, $parameter, $target = "-", $additionalCosts = "-", $uniqueID = "-") {
   global $combatChainState, $CCS_AfterLinkLayers;
-  if($combatChainState[$CCS_AfterLinkLayers] == "NA") $combatChainState[$CCS_AfterLinkLayers] = $cardID . "-" . $player . "-" . $parameter . "-" . $target . "-" . $additionalCosts . "-" . $uniqueID;
-  else $combatChainState[$CCS_AfterLinkLayers] .= "|" . $cardID . "-" . $player . "-" . $parameter . "-" . $target . "-" . $additionalCosts . "-" . $uniqueID;
+  if($combatChainState[$CCS_AfterLinkLayers] == "NA") $combatChainState[$CCS_AfterLinkLayers] = $cardID . "~" . $player . "~" . $parameter . "~" . $target . "~" . $additionalCosts . "~" . $uniqueID;
+  else $combatChainState[$CCS_AfterLinkLayers] .= "|" . $cardID . "~" . $player . "~" . $parameter . "~" . $target . "~" . $additionalCosts . "~" . $uniqueID;
 }
 
 function ProcessAfterCombatLayer() {
@@ -530,8 +548,8 @@ function ProcessAfterCombatLayer() {
   $layers = explode("|", $combatChainState[$CCS_AfterLinkLayers]);
   $combatChainState[$CCS_AfterLinkLayers] = "NA";
   for($i = 0; $i < count($layers); $i++) {
-    $layer = explode("-", $layers[$i]);
-    AddLayer($layer[0], $layer[1], $layer[2], $layer[3], $layer[4], $layer[5]);
+    $layer = explode("~", $layers[$i]);
+    AddLayer($layer[0], $layer[1], $layer[2], $layer[3], $layer[4], $layer[5], append:true);
   }
 }
 
@@ -568,6 +586,9 @@ function ProcessTrigger($player, $parameter, $uniqueID, $target="-")
       $index = SearchAlliesForUniqueID($uniqueID, $player);
       $ally = new Ally("MYALLY-" . $index, $player);
       $ally->Attach("8752877738");//Shield Token
+      break;
+    case "AFTERPLAYABILITY":
+      AllyPlayCardAbility($target, $player);
       break;
     default: break;
   }

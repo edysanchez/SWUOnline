@@ -88,6 +88,7 @@ function EffectAttackModifier($cardID)
     case "2569134232": return -4;//Jedha City
     case "1323728003": return -1;//Electrostaff
     case "2651321164": return 2;//Tactical Advantage
+    case "1701265931": return 4;//Moment of Glory
     case "1900571801": return 2;//Overwhelming Barrage
     case "3809048641": return 3;//Surprise Strike
     case "3038238423": return 2;//Fleet Lieutenant
@@ -108,6 +109,7 @@ function EffectAttackModifier($cardID)
     case "1939951561": return $subparam;//Attack Pattern Delta
     case "8988732248": return 1;//Rebel Assault
     case "7109944284": return -1* $subparam;//Luke Skywalker
+    case "1885628519": return 1;//Crosshair
     default: return 0;
   }
 }

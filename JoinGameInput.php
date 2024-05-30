@@ -19,6 +19,15 @@ include_once 'LZCompressor/LZUtil16.php';
 use LZCompressor\LZString as LZString;
 
 session_start();
+if (!isset($_SESSION["userid"])) {
+  if (isset($_COOKIE["rememberMeToken"])) {
+    include_once './Assets/patreon-php-master/src/PatreonLibraries.php';
+    include_once './Assets/patreon-php-master/src/API.php';
+    include_once './Assets/patreon-php-master/src/PatreonDictionary.php';
+    loginFromCookie();
+  }
+}
+
 $gameName = $_GET["gameName"];
 if (!IsGameNameValid($gameName)) {
   echo ("Invalid game name.");
@@ -106,6 +115,7 @@ if ($decklink != "") {
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
     $apiDeck = curl_exec($curl);
     $apiInfo = curl_getinfo($curl);
+    $errorMessage = curl_error($curl);
     curl_close($curl);
     $json = $apiDeck;
     echo($json);
@@ -115,6 +125,7 @@ if ($decklink != "") {
   if($json == "") {
     echo "Failed to retrieve deck from API. Check to make sure you have a valid deckbuilder link. If it's a SWUDB link, make sure it's not a private deck.<BR>";
     echo "Your link: " . $originalLink . "<BR>";
+    echo "Error Message: " . $errorMessage . "<BR>";
     exit;
   }
 
