@@ -174,11 +174,8 @@ class LZString
     }
 
     /**
-     * @param LZContext $context
      * @param integer $bitsPerChar
      * @param callable $getCharFromInt
-     *
-     * @return LZContext
      */
     private static function produceW(LZContext $context, $bitsPerChar, $getCharFromInt)
     {
