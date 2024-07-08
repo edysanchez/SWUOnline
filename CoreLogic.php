@@ -35,26 +35,6 @@ function EvaluateCombatChain(&$totalAttack, &$totalDefense, &$attackModifiers=[]
       }
     }
 
-    /*
-    //Now check current turn effects
-    for($i=0; $i<count($currentTurnEffects); $i+=CurrentTurnPieces())
-    {
-      if(IsCombatEffectActive($currentTurnEffects[$i]) && !IsCombatEffectLimited($i))
-      {
-        if($currentTurnEffects[$i+1] == $mainPlayer)
-        {
-          $attack = EffectAttackModifier($currentTurnEffects[$i]);
-          if(($canGainAttack || $attack < 0) && !($snagActive && $currentTurnEffects[$i] == $combatChain[0]))
-          {
-            array_push($attackModifiers, $currentTurnEffects[$i]);
-            array_push($attackModifiers, $attack);
-            AddAttack($totalAttack, $attack);
-          }
-        }
-      }
-    }
-    */
-
     if($combatChainState[$CCS_WeaponIndex] != -1)
     {
       $attack = 0;
@@ -218,38 +198,8 @@ function CachedNumActionBlocked()
 function StartTurnAbilities()
 {
   global $initiativePlayer;
-  MZStartTurnMayAbilities();
   AuraStartTurnAbilities();
   ItemStartTurnAbilities();
-}
-
-function MZStartTurnMayAbilities()
-{
-  global $mainPlayer;
-  AddDecisionQueue("FINDINDICES", $mainPlayer, "MZSTARTTURN");
-  AddDecisionQueue("SETDQCONTEXT", $mainPlayer, "Choose a start turn ability to activate (or pass)", 1);
-  AddDecisionQueue("MAYCHOOSEMULTIZONE", $mainPlayer, "<-", 1);
-  AddDecisionQueue("MZSTARTTURNABILITY", $mainPlayer, "-", 1);
-}
-
-function MZStartTurnIndices()
-{
-  global $mainPlayer;
-  $mainDiscard = &GetDiscard($mainPlayer);
-  $cards = "";
-  for($i=0; $i<count($mainDiscard); $i+=DiscardPieces())
-  {
-    switch($mainDiscard[$i])
-    {
-      case "UPR086":
-        if(ThawIndices($mainPlayer) != "")
-        {
-          $cards = CombineSearches($cards, SearchMultiZoneFormat($i, "MYDISCARD")); break;
-        }
-      default: break;
-    }
-  }
-  return $cards;
 }
 
 function ArsenalStartTurnAbilities()
@@ -329,7 +279,7 @@ function ArsenalHitEffects()
 
 function CharacterPlayCardAbilities($cardID, $from)
 {
-  global $currentPlayer, $CS_NumAttacks;
+  global $currentPlayer;
   $character = &GetPlayerCharacter($currentPlayer);
   for($i=0; $i<count($character); $i+=CharacterPieces())
   {
@@ -362,11 +312,44 @@ function MainCharacterPlayCardAbilities($cardID, $from)
   for($i = 0; $i < count($character); $i += CharacterPieces()) {
     if($character[$i+1] != 2) continue;
     switch($character[$i]) {
-      case "zdIhSL5RhK": case "g92bHLtTNl": case "6ILtLfjQEe":
-        if(ClassContains($cardID, "MAGE"))
-        {
-          PlayAura("ENLIGHTEN", $currentPlayer);
+      case "3045538805"://Hondo Ohnaka
+        if($from == "RESOURCES") {
+          AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
+          AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to give an experience token", 1);
+          AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+          AddDecisionQueue("MZOP", $currentPlayer, "ADDEXPERIENCE", 1);
+          AddDecisionQueue("EXHAUSTCHARACTER", $currentPlayer, $i, 1);
+        }
+        break;
+      case "1384530409"://Cad Bane
+        if($from != 'PLAY' && $from != 'EQUIP' && TraitContains($cardID, "Underworld", $currentPlayer)) { 
+          $otherPlayer = ($currentPlayer == 1 ? 2 : 1);
+          AddDecisionQueue("YESNO", $currentPlayer, "if you want use Cad Bane's ability");
+          AddDecisionQueue("NOPASS", $currentPlayer, "-");
+          AddDecisionQueue("EXHAUSTCHARACTER", $currentPlayer, $i, 1);
+          AddDecisionQueue("MULTIZONEINDICES", $otherPlayer, "MYALLY", 1);
+          AddDecisionQueue("SETDQCONTEXT", $otherPlayer, "Choose a unit to deal 1 damage to", 1);
+          AddDecisionQueue("CHOOSEMULTIZONE", $otherPlayer, "<-", 1);
+          AddDecisionQueue("MZOP", $otherPlayer, "DEALDAMAGE,1", 1);
+        }
+        break;
+      case "9005139831"://The Mandalorian
+        if(DefinedTypesContains($cardID, "Upgrade", $currentPlayer)) {
+          AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY:maxHealth=4");
+          AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to exhaust", 1);
+          AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+          AddDecisionQueue("MZOP", $currentPlayer, "REST", 1);
+          AddDecisionQueue("EXHAUSTCHARACTER", $currentPlayer, $i, 1);
+        }
+        break;
+      case "9334480612"://Boba Fett Green Leader
+        if(DefinedTypesContains($cardID, "Unit", $currentPlayer)) {
           $character[$i+1] = 1;
+          AddDecisionQueue("MULTIZONEINDICES", $mainPlayer, "MYALLY");
+          AddDecisionQueue("SETDQCONTEXT", $mainPlayer, "Choose a card to give +1 power");
+          AddDecisionQueue("MAYCHOOSEMULTIZONE", $mainPlayer, "<-", 1);
+          AddDecisionQueue("MZOP", $mainPlayer, "GETUNIQUEID", 1);
+          AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $mainPlayer, "9334480612,HAND", 1);
         }
         break;
       default:
@@ -511,10 +494,7 @@ function FinalizeDamage($player, $damage, $damageThreatened, $type, $source)
 
 function ProcessDealDamageEffect($cardID)
 {
-  $set = CardSet($cardID);
-  if($set == "UPR") {
-    return UPRDealDamageEffect($cardID);
-  }
+
 }
 
 function ArcaneDamagePrevented($player, $cardMZIndex)
@@ -600,8 +580,9 @@ function Restore($amount, $player)
   }
   $health = &GetHealth($player);
   WriteLog("Player " . $player . " gained " . $amount . " health.");
+  if($amount > $health) $amount = $health;
   $health -= $amount;
-  if($health < 0) $health = 0;
+  AddEvent("RESTORE", "P" . $player . "BASE!" . $amount);
   return true;
 }
 
@@ -612,6 +593,7 @@ function PlayerLoseHealth($player, $amount)
   $char = &GetPlayerCharacter($player);
   if(count($char) == 0) return;
   $health += $amount;
+  AddEvent("DAMAGE", "P" . $player . "BASE!" . $amount);
   if(PlayerRemainingHealth($player) <= 0)
   {
     PlayerWon(($player == 1 ? 2 : 1));
@@ -666,6 +648,16 @@ function UnsetBanishModifier($player, $modifier, $newMod="DECK")
   }
 }
 
+function UnsetDiscardModifier($player, $modifier, $newMod="-")
+{
+  $discard = &GetDiscard($player);
+  for($i=0; $i<count($discard); $i+=DiscardPieces())
+  {
+    $cardModifier = explode("-", $discard[$i+1])[0];
+    if($cardModifier == $modifier) $discard[$i+1] = $newMod;
+  }
+}
+
 function UnsetChainLinkBanish()
 {
   UnsetBanishModifier(1, "TCL");
@@ -683,6 +675,14 @@ function UnsetCombatChainBanish()
 function ReplaceBanishModifier($player, $oldMod, $newMod)
 {
   UnsetBanishModifier($player, $oldMod, $newMod);
+}
+
+function UnsetTurnModifiers()
+{
+  UnsetDiscardModifier(1, "TT");
+  UnsetDiscardModifier(1, "TTFREE");
+  UnsetDiscardModifier(2, "TT");
+  UnsetDiscardModifier(2, "TTFREE");
 }
 
 function UnsetTurnBanish()
@@ -886,34 +886,6 @@ function NumActionBlocked()
   return $num;
 }
 
-function NumCardsBlocking()
-{
-  global $combatChain, $defPlayer;
-  $num = 0;
-  for($i=0; $i<count($combatChain); $i += CombatChainPieces())
-  {
-    if($combatChain[$i+1] == $defPlayer)
-    {
-      $type = CardType($combatChain[$i]);
-      if($type != "I" && $type != "C") ++$num;
-    }
-  }
-  return $num;
-}
-
-function NumCardsNonEquipBlocking()
-{
-  global $combatChain, $defPlayer;
-  $num = 0;
-  for ($i = 0; $i < count($combatChain); $i += CombatChainPieces()) {
-    if ($combatChain[$i + 1] == $defPlayer) {
-      $type = CardType($combatChain[$i]);
-      if ($type != "E" && $type != "I" && $type != "C") ++$num;
-    }
-  }
-  return $num;
-}
-
 function NumAttacksBlocking()
 {
   global $combatChain, $defPlayer;
@@ -923,51 +895,6 @@ function NumAttacksBlocking()
     if($combatChain[$i+1] == $defPlayer)
     {
       if(CardType($combatChain[$i]) == "AA") ++$num;
-    }
-  }
-  return $num;
-}
-
-function NumActionsBlocking()
-{
-  global $combatChain, $defPlayer;
-  $num = 0;
-  for($i=0; $i<count($combatChain); $i += CombatChainPieces())
-  {
-    if($combatChain[$i+1] == $defPlayer)
-    {
-      $cardType = CardType($combatChain[$i]);
-      if($cardType == "A" || $cardType == "AA") ++$num;
-    }
-  }
-  return $num;
-}
-
-function NumNonAttackActionBlocking()
-{
-  global $combatChain, $defPlayer;
-  $num = 0;
-  for($i=0; $i<count($combatChain); $i += CombatChainPieces())
-  {
-    if($combatChain[$i+1] == $defPlayer)
-    {
-      $type = CardType($combatChain[$i]);
-      if($type == "A") ++$num;
-    }
-  }
-  return $num;
-}
-
-function NumReactionBlocking()
-{
-  global $combatChain, $defPlayer;
-  $num = 0;
-  for($i=0; $i<count($combatChain); $i += CombatChainPieces())
-  {
-    if($combatChain[$i+1] == $defPlayer)
-    {
-      $type = CardType($combatChain[$i]);
-      if($type == "AR" || $type == "DR") ++$num;
     }
   }
   return $num;
@@ -1224,7 +1151,7 @@ function DefinedTypesContains($cardID, $type, $player="")
 {
   if(!$cardID || $cardID == "" || strlen($cardID) < 3) return "";
   $cardTypes = DefinedCardType($cardID);
-  $cardTypes2 = DefinedCardType2($cardID);
+  $cardTypes2 = DefinedCardType2Wrapper($cardID);
   return DelimStringContains($cardTypes, $type) || DelimStringContains($cardTypes2, $type);
 }
 
@@ -1246,8 +1173,18 @@ function AspectContains($cardID, $aspect, $player="")
   return DelimStringContains($cardAspect, $aspect);
 }
 
-function TraitContains($cardID, $trait, $player="")
+function TraitContains($cardID, $trait, $player="", $index=-1)
 {
+  if($index != -1) {
+    $ally = new Ally("MYALLY-" . $index, $player);
+    $upgrades = $ally->GetUpgrades();
+    for($i=0; $i<count($upgrades); ++$i) {
+      switch($upgrades[$i]) {
+        case "7687006104": if($trait == "Mandalorian") { return true; } break;
+        default: break;}
+      if(TraitContains($upgrades[$i], $trait, $player)) return true;
+    }
+  }
   $cardTrait = CardTraits($cardID);
   return DelimStringContains($cardTrait, $trait);
 }
@@ -1319,7 +1256,7 @@ function RevealCards($cards, $player="", $from="HAND")
   {
     if($string != "") $string .= ", ";
     $string .= CardLink($cardArray[$i], $cardArray[$i]);
-    AddEvent("REVEAL", $cardArray[$i]);
+    //AddEvent("REVEAL", $cardArray[$i]);
     OnRevealEffect($player, $cardArray[$i], $from, $i);
   }
   $string .= (count($cardArray) == 1 ? " is" : " are");
@@ -1334,25 +1271,6 @@ function OnRevealEffect($player, $cardID, $from, $index)
   {
     default: break;
   }
-}
-
-function DoesAttackHaveGoAgain()
-{
-  global $combatChain, $combatChainState, $CCS_CurrentAttackGainedGoAgain, $mainPlayer, $defPlayer, $CS_NumRedPlayed, $CS_NumNonAttackCards;
-  global $CS_NumAuras, $CS_ArcaneDamageTaken, $myDeck, $CS_AnotherWeaponGainedGoAgain;
-
-  if(count($combatChain) == 0) return false;//No combat chain, so no
-  $attackType = CardType($combatChain[0]);
-  $attackSubtype = CardSubType($combatChain[0]);
-  if(CurrentEffectPreventsGoAgain()) return false;
-  if(HasGoAgain($combatChain[0])) return true;
-  if($combatChainState[$CCS_CurrentAttackGainedGoAgain] == 1 || CurrentEffectGrantsGoAgain() || MainCharacterGrantsGoAgain()) return true;
-  switch($combatChain[0])
-  {
-
-    default: break;
-  }
-  return false;
 }
 
 function IsEquipUsable($player, $index)
@@ -1812,21 +1730,59 @@ function SameWeaponEquippedTwice()
   return false;
 }
 
-function SelfCostModifier($cardID)
+function SelfCostModifier($cardID, $from)
 {
-  global $currentPlayer, $CS_NumAttacks, $CS_LastAttack, $CS_LayerTarget, $layers;
+  global $currentPlayer, $CS_LastAttack, $CS_LayerTarget, $CS_NumClonesPlayed, $layers;
   $modifier = 0;
   //Aspect Penalty
-  if(!TraitContains($cardID, "Spectre", $currentPlayer) || (HeroCard($currentPlayer) != "7440067052" && SearchAlliesForCard($currentPlayer, "80df3928eb") == "")) {
+  $heraSyndullaAspectPenaltyIgnore = TraitContains($cardID, "Spectre", $currentPlayer) && (HeroCard($currentPlayer) == "7440067052" || SearchAlliesForCard($currentPlayer, "80df3928eb") != ""); //Hera Syndulla (Spectre Two)
+  $omegaAspectPenaltyIgnore = TraitContains($cardID, "Clone", $currentPlayer) && SearchAlliesForCard($currentPlayer, "1386874723") != "" && GetClassState($currentPlayer, $CS_NumClonesPlayed) < 1; //Omega (Part of the Squad)
+  if(!$heraSyndullaAspectPenaltyIgnore && !$omegaAspectPenaltyIgnore) {
     $penalty = 0;
     $cardAspects = CardAspects($cardID);
+    //Manually changing the aspects of cards played with smuggle that have different aspect requirements for smuggle.
+    //Not a great solution; ideally we could define a whole smuggle ability in one place.
+    if ($from == "RESOURCES") {
+      switch($cardID) {
+        case "5169472456"://Chewbacca (Pykesbane)
+          $cardAspects = "Heroism,Aggression";
+          break;
+        case "9871430123"://Sugi
+          $cardAspects = "Vigilance";
+          break;
+        case "5874342508"://Hotshot DL-44 Blaster
+          $cardAspects = "Cunning";
+          break;
+        case "4002861992"://DJ (Blatant Thief)
+          $cardAspects = "Cunning,Cunning";
+          break;
+        case "3010720738"://Tobias Beckett
+          $cardAspects = "Vigilance";
+          break;
+        default: break;
+      }
+    }
     if($cardAspects != "") {
       $aspectArr = explode(",", $cardAspects);
       $playerAspects = PlayerAspects($currentPlayer);
       for($i=0; $i<count($aspectArr); ++$i)
       {
         --$playerAspects[$aspectArr[$i]];
-        if($playerAspects[$aspectArr[$i]] < 0) ++$penalty;
+        if($playerAspects[$aspectArr[$i]] < 0) {
+          //We have determined that the player is liable for an aspect penalty
+          //Now we need to determine if they are exempt
+          switch($cardID) {
+            case "6263178121"://Kylo Ren (Killing the Past)
+              if(!ControlsNamedCard($currentPlayer, "Rey")) ++$penalty;
+              break;
+            case "0196346374"://Rey (Keeping the Past)
+              if(!ControlsNamedCard($currentPlayer, "Kylo Ren")) ++$penalty;
+              break;
+            default:
+              ++$penalty;
+              break;
+          }
+        }
       }
       $modifier += $penalty * 2;
     }
@@ -1839,6 +1795,24 @@ function SelfCostModifier($cardID)
     case "4111616117"://Volunteer Soldier
       if(SearchCount(SearchAllies($currentPlayer, trait:"Trooper")) > 0) $modifier -= 1;
       break;
+    case "6905327595"://Reputable Hunter
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      $theirAllies = &GetAllies($otherPlayer);
+      $hasBounty = false;
+      for($i=0; $i<count($theirAllies) && !$hasBounty; $i+=AllyPieces())
+      {
+        $theirAlly = new Ally("MYALLY-" . $i, $otherPlayer);
+        if($theirAlly->HasBounty()) { $hasBounty = true; $modifier -= 1; }
+      }
+      break;
+    case "7212445649"://Bravado
+      global $CS_NumAlliesDestroyed;
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      if(GetClassState($otherPlayer, $CS_NumAlliesDestroyed) > 0) $modifier -= 2;
+      break;
+    case "8380936981"://Jabba's Rancor
+      if(ControlsNamedCard($currentPlayer, "Jabba the Hutt")) $modifier -= 1;
+      break;
     default: break;
   }
   //Target cost modifier
@@ -1846,10 +1820,13 @@ function SelfCostModifier($cardID)
     $targetID = GetMZCard($currentPlayer, GetClassState($currentPlayer, $CS_LayerTarget));
   } else {
     if(SearchAlliesForCard($currentPlayer, "4166047484") != "") $targetID = "4166047484";
+    else if($cardID == "3141660491") $targetID = "4088c46c4d";
     else $targetID = "";
   }
-  //Guardian of the Whills
-  if(DefinedTypesContains($cardID, "Upgrade", $currentPlayer) && $targetID == "4166047484") $modifier -= 1;
+  if(DefinedTypesContains($cardID, "Upgrade", $currentPlayer)) {
+    if($targetID == "4166047484") $modifier -= 1;//Guardian of the Whills
+    if($cardID == "3141660491" && $targetID != "" && TraitContains($targetID, "Mandalorian", $currentPlayer)) $modifier -= $penalty * 2;//The Darksaber
+  }
   //My ally cost modifier
   $allies = &GetAllies($currentPlayer);
   for($i=0; $i<count($allies); $i+=AllyPieces())
@@ -2104,16 +2081,27 @@ function IsClassBonusActive($player, $class)
 
 function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalCosts = "-")
 {
-  global $currentPlayer, $layers, $CS_NumAttacks, $CS_PlayIndex;
+  global $currentPlayer, $layers, $CS_PlayIndex, $initiativePlayer, $CCS_FrontLineShuttle;
   $index = GetClassState($currentPlayer, $CS_PlayIndex);
+  if($from == "PLAY" && IsAlly($cardID, $currentPlayer)) {
+    $abilityName = GetResolvedAbilityName($cardID, $from);
+    if($abilityName == "Heroic Resolve") {
+      $ally = new Ally("MYALLY-" . $index, $currentPlayer);
+      $ally->DefeatUpgrade("4085341914");
+      AddCurrentTurnEffect("4085341914", $currentPlayer, "PLAY", $ally->UniqueID());
+      AddDecisionQueue("PASSPARAMETER", $currentPlayer, "MYALLY-" . $index);
+      AddDecisionQueue("MZOP", $currentPlayer, "ATTACK");
+      return;
+    }
+  }
   if($target != "-")
   {
     $targetArr = explode("-", $target);
     if($targetArr[0] == "LAYERUID") { $targetArr[0] = "LAYER"; $targetArr[1] = SearchLayersForUniqueID($targetArr[1]); }
     $target = count($targetArr) > 1 ? $targetArr[0] . "-" . $targetArr[1] : "-";
   }
-  if($from != "PLAY" && $from != "EQUIP") {
-    if(AllyPlayCardAbility($cardID, $currentPlayer, reportMode:true)) AddLayer("TRIGGER", $currentPlayer, "AFTERPLAYABILITY", $cardID, $from, $target, $additionalCosts);
+  if($from != "PLAY" && $from != "EQUIP" && $from != "CHAR") {
+    if(AllyPlayCardAbility($cardID, $currentPlayer, reportMode:true, from:$from)) AddLayer("TRIGGER", $currentPlayer, "AFTERPLAYABILITY", $cardID, $from, $target, $additionalCosts);
   }
   if($from != "PLAY" && IsAlly($cardID, $currentPlayer)) {
     $playAlly = new Ally("MYALLY-" . LastAllyIndex($currentPlayer));
@@ -2140,6 +2128,43 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
           AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a damaged unit to take control of", 1);
           AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
           AddDecisionQueue("MZOP", $currentPlayer, "TAKECONTROL", 1);
+          break;
+        case "2432897157"://Qi'Ra
+          $myAllies = &GetAllies($currentPlayer);
+          for($i=0; $i<count($myAllies); $i+=AllyPieces())
+          {
+            $ally = new Ally("MYALLY-" . $i, $currentPlayer);
+            $ally->Heal(9999);
+            $ally->DealDamage(floor($ally->MaxHealth()/2));
+          }
+          $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+          $theirAllies = &GetAllies($otherPlayer);
+          for($i=0; $i<count($theirAllies); $i+=AllyPieces())
+          {
+            $ally = new Ally("MYALLY-" . $i, $otherPlayer);
+            $ally->Heal(9999);
+            $ally->DealDamage(floor($ally->MaxHealth()/2));
+          }
+          break;
+        case "0254929700"://Doctor Aphra
+          AddDecisionQueue("FINDINDICES", $currentPlayer, "GY");
+          AddDecisionQueue("PREPENDLASTRESULT", $currentPlayer, "3-", 1);
+          AddDecisionQueue("APPENDLASTRESULT", $currentPlayer, "-3", 1);
+          AddDecisionQueue("MULTICHOOSEDISCARD", $currentPlayer, "<-", 1);
+          AddDecisionQueue("SPECIFICCARD", $currentPlayer, "DOCTORAPHRA", 1);
+          break;
+        case "0622803599"://Jabba the Hutt
+          AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+          AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+          AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to capture another unit");
+          AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+          AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+          AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+          AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY", 1);
+          AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader", 1);
+          AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to capture", 1);
+          AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+          AddDecisionQueue("MZOP", $currentPlayer, "CAPTURE,{0}", 1);
           break;
         default: break;
       }
@@ -2173,7 +2198,11 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       break;
     case "6253392993"://Bright Hope
       if($from != "PLAY") {
-        MZMoveCard($currentPlayer, "MYALLY:arena=Ground", "MYHAND", may:true, filter:"leader=1");
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:arena=Ground");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to bounce");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "BOUNCE", 1);
         AddDecisionQueue("DRAW", $currentPlayer, "-", 1);
       }
       break;
@@ -2200,16 +2229,16 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
         AddDecisionQueue("FINDINDICES", $currentPlayer, "DECKTOPXREMOVE," . 5);
         AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
         AddDecisionQueue("FILTER", $currentPlayer, "LastResult-include-trait-Imperial", 1);
-        AddDecisionQueue("CHOOSECARD", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
         AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
         AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
         AddDecisionQueue("OP", $currentPlayer, "REMOVECARD", 1);
         AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
         AddDecisionQueue("FILTER", $currentPlayer, "LastResult-include-trait-Imperial", 1);
-        AddDecisionQueue("CHOOSECARD", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
         AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
         AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
-        AddDecisionQueue("OP", $currentPlayer, "REMOVECARD", 1);
+        AddDecisionQueue("OP", $currentPlayer, "REMOVECARD");
         AddDecisionQueue("ALLRANDOMBOTTOM", $currentPlayer, "DECK");
       }
       break;
@@ -2503,7 +2532,7 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
     case "8294130780"://Gladiator Star Destroyer
       if($from != "PLAY") {
         AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to give Sentinel");
-        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
         AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "WRITECHOICE", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
@@ -2636,7 +2665,7 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       AddDecisionQueue("FINDINDICES", $currentPlayer, "DECKTOPXREMOVE," . 5);
       AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
       AddDecisionQueue("FILTER", $currentPlayer, "LastResult-include-definedType-Unit", 1);
-      AddDecisionQueue("CHOOSECARD", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
       AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
       AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
       AddDecisionQueue("OP", $currentPlayer, "REMOVECARD");
@@ -2648,7 +2677,7 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
         AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
         AddDecisionQueue("FILTER", $currentPlayer, "LastResult-include-trait-Rebel", 1);
         AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a rebel to draw", 1);
-        AddDecisionQueue("CHOOSECARD", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
         AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
         AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
         AddDecisionQueue("OP", $currentPlayer, "REMOVECARD");
@@ -2817,9 +2846,9 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       global $CS_NumVillainyPlayed;
       $abilityName = GetResolvedAbilityName($cardID, $from);
       if($abilityName == "Deal Damage" && GetClassState($currentPlayer, $CS_NumVillainyPlayed) > 0) {
-        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 1 damage to");
-        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
-        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY", 1);
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 1 damage to", 1);
+        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,1", 1);
         $otherPlayer = $currentPlayer == 1 ? 2 : 1;
         DealDamageAsync($otherPlayer, 1, "DAMAGE", "6088773439");
@@ -2892,13 +2921,13 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       AddDecisionQueue("FINDINDICES", $currentPlayer, "DECKTOPXREMOVE," . 8);
       AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
       AddDecisionQueue("FILTER", $currentPlayer, "LastResult-include-trait-Vehicle", 1);
-      AddDecisionQueue("CHOOSECARD", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
       AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
       AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
       AddDecisionQueue("OP", $currentPlayer, "REMOVECARD", 1);
       AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
       AddDecisionQueue("FILTER", $currentPlayer, "LastResult-include-trait-Vehicle", 1);
-      AddDecisionQueue("CHOOSECARD", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
       AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
       AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
       AddDecisionQueue("OP", $currentPlayer, "REMOVECARD", 1);
@@ -2951,7 +2980,9 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
         AddDecisionQueue("PASSPARAMETER", $currentPlayer, "1");
         $otherPlayer = $currentPlayer == 1 ? 2 : 1;
         AddDecisionQueue("FINDINDICES", $otherPlayer, "HAND");
-        AddDecisionQueue("SETDQCONTEXT", $otherPlayer, "Choose a card to discard", 1);
+        AddDecisionQueue("REVEALHANDCARDS", $otherPlayer, "-");
+        AddDecisionQueue("FINDINDICES", $otherPlayer, "HAND");
+        AddDecisionQueue("SETDQCONTEXT", $otherPlayer, "If you have the named card, you must discard it", 1);
         AddDecisionQueue("MAYCHOOSEHAND", $otherPlayer, "<-", 1);
         AddDecisionQueue("MULTIREMOVEHAND", $otherPlayer, "-", 1);
         AddDecisionQueue("ADDDISCARD", $otherPlayer, "HAND", 1);
@@ -2985,8 +3016,8 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
     case "3208391441"://Make an Opening
       Restore(2, $currentPlayer);
       $otherPlayer = $currentPlayer == 1 ? 2 : 1;
-      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to attack and give -2/-2");
       AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to attack and give -2/-2", 1);
       AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
       AddDecisionQueue("SETDQVAR", $currentPlayer, 0, 1);
       AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
@@ -2995,21 +3026,25 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       AddDecisionQueue("MZOP", $currentPlayer, "REDUCEHEALTH,2", 1);
       break;
     case "2758597010"://Maximum Firepower
+      AddDecisionQueue("PASSPARAMETER", $currentPlayer, "-", 1);
+      AddDecisionQueue("SETDQVAR", $currentPlayer, 0, 1);
       for($i=0; $i<2; ++$i) {
-        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to deal damage");
         AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:trait=Imperial");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "dqVar=0", 1);
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to deal damage", 1);
         AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("APPENDDQVAR", $currentPlayer, 0, 1);
         AddDecisionQueue("MZOP", $currentPlayer, "POWER", 1);
-        AddDecisionQueue("SETDQVAR", $currentPlayer, 0, 1);
+        AddDecisionQueue("SETDQVAR", $currentPlayer, 1, 1);
         AddDecisionQueue("PASSPARAMETER", $currentPlayer, $target, 1);
-        AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,{0}", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,{1}", 1);
       }
       break;
     case "4263394087"://Chirrut Imwe
       $abilityName = GetResolvedAbilityName($cardID, $from);
       if($abilityName == "Buff HP") {
         AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to give +2 hp");
-        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
         AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "ADDHEALTH,2", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
@@ -3024,7 +3059,7 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
         AddDecisionQueue("MZOP", $currentPlayer, "GETCARDID", 1);
         AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
         AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 1 damage", 1);
-        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY", 1);
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY", 1);
         AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,1", 1);
       }
@@ -3226,7 +3261,7 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
         AddDecisionQueue("MZOP", $currentPlayer, "DESTROY", 1);
         AddDecisionQueue("DRAW", $currentPlayer, "-", 1);
         AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose an ally to deal 1 damage");
-        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
         AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,1", 1);
       }
@@ -3245,7 +3280,8 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
     case "1626462639"://Change of Heart
       $otherPlayer = $currentPlayer == 1 ? 2 : 1;
       AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
-      AddDecisionQueue("MZFILTER", $currentPlayer, "leader=1");
+      AddDecisionQueue("MZFILTER", $currentPlayer, "leader=1", 1);
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to take control of", 1);
       AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
       AddDecisionQueue("MZOP", $currentPlayer, "TAKECONTROL", 1);
       AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "1626462639", 1);
@@ -3298,7 +3334,9 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       if($abilityName == "Shuttle") {
         $ally = new Ally("MYALLY-" . $index);
         $ally->Destroy();
-        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+        AddDecisionQueue("PASSPARAMETER", $currentPlayer, 1);
+        AddDecisionQueue("SETCOMBATCHAINSTATE", $currentPlayer, $CCS_FrontLineShuttle, 1);
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY", 1);
         AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose an ally to attack with");
         AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "READY", 1);
@@ -3320,7 +3358,7 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       DefeatUpgrade($currentPlayer);
       break;
     case "2668056720"://Disabling Fang Fighter
-      if($from != "PLAY") DefeatUpgrade($currentPlayer);
+      if($from != "PLAY") DefeatUpgrade($currentPlayer, true);
       break;
     case "4323691274"://Power Failure
       DefeatUpgrade($currentPlayer);
@@ -3384,10 +3422,14 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       AddDecisionQueue("SPECIFICCARD", $currentPlayer, "THEEMPERORSLEGION");
       break;
     case "1939951561"://Attack Pattern Delta
+      AddDecisionQueue("PASSPARAMETER", $currentPlayer, "-", 1);
+      AddDecisionQueue("SETDQVAR", $currentPlayer, 0, 1);
       for($i=3; $i>0; --$i) {
         AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
-        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to give +" . $i . "/+" . $i);
+        AddDecisionQueue("MZFILTER", $currentPlayer, "dqVar=0");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to give +" . $i . "/+" . $i, 1);
         AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("APPENDDQVAR", $currentPlayer, 0, 1);
         AddDecisionQueue("MZOP", $currentPlayer, "ADDHEALTH," . $i, 1);
         AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
         AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "1939951561_" . $i . ",PLAY", 1);
@@ -3428,6 +3470,14 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
       AddDecisionQueue("MZOP", $currentPlayer, "ATTACK", 1);
       break;
+    case "0802973415"://Outflank
+      AddCurrentTurnEffect($cardID, $currentPlayer);
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+      AddDecisionQueue("MZFILTER", $currentPlayer, "status=1");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to attack with");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "ATTACK", 1);
+      break;
     case "8142386948"://Razor Crest
       MZMoveCard($currentPlayer, "MYDISCARD:definedType=Upgrade", "MYHAND", may:true);
       break;
@@ -3461,7 +3511,7 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       if($from != "PLAY") {
         AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:maxCost=2&THEIRALLY:maxCost=2");
         AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to heal and shield");
-        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "RESTORE,999", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "ADDSHIELD", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "ADDSHIELD", 1);
@@ -3471,16 +3521,21 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       MZChooseAndDestroy($currentPlayer, "MYALLY:minAttack=5&THEIRALLY:minAttack=5", filter:"leader=1");
       break;
     case "0282219568"://Clan Wren Rescuer
-      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
-      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to add experience");
-      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
-      AddDecisionQueue("MZOP", $currentPlayer, "ADDEXPERIENCE", 1);
+      if($from != "PLAY") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to add experience");
+        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "ADDEXPERIENCE", 1);
+      }
       break;
     case "1081897816"://Mandalorian Warrior
-      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:trait=Mandalorian&THEIRALLY:trait=Mandalorian");
-      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to add experience");
-      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
-      AddDecisionQueue("MZOP", $currentPlayer, "ADDEXPERIENCE", 1);
+      if($from != "PLAY") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:trait=Mandalorian&THEIRALLY:trait=Mandalorian");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "index=MYALLY-" . $playAlly->Index());
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to add experience");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "ADDEXPERIENCE", 1);
+      }
       break;
     case "0866321455"://Smuggler's Aid
       Restore(3, $currentPlayer);
@@ -3492,7 +3547,8 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
         AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to give the bounty");
         AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
         AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
-        AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "1090660242,PLAY", 1);
+        AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "1090660242-2,PLAY", 1);
+        WriteLog("This is a partially manual card. Name the card in chat that bounty was applied to");
       }
       break;
     case "1565760222"://Remnant Reserves
@@ -3500,7 +3556,7 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       for($i=0; $i<3; ++$i) {
         AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
         AddDecisionQueue("FILTER", $currentPlayer, "LastResult-include-definedType-Unit", 1);
-        AddDecisionQueue("CHOOSECARD", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
         AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
         AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
         AddDecisionQueue("OP", $currentPlayer, "REMOVECARD", 1);
@@ -3534,9 +3590,755 @@ function PlayAbility($cardID, $from, $resourcesPaid, $target = "-", $additionalC
       }
       break;
     case "3514010297"://Mandalorian Armor
-      if(TraitContains(GetMZCard($currentPlayer, $target), "Mandalorian", $currentPlayer)) {
-        $ally = new Ally($target, $currentPlayer);
+      $ally = new Ally($target, $currentPlayer);
+      if(TraitContains(GetMZCard($currentPlayer, $target), "Mandalorian", $currentPlayer, $ally->Index())) {
         $ally->Attach("8752877738");//Shield Token
+      }
+      break;
+    case "1480894253"://Kylo Ren
+      PummelHit($currentPlayer);
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to give +2 power", 1);
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+      AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "1480894253,PLAY", 1);
+      break;
+    case "0931441928"://Ma Klounkee
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:trait=Underworld");
+      AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to bounce");
+      AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "BOUNCE", 1);
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY", 1);
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 3 damage to", 1);
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,3", 1);
+      break;
+    case "0302968596"://Calculated Lethality
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:maxCost=3&THEIRALLY:maxCost=3");
+      AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to defeat");
+      AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("SPECIFICCARD", $currentPlayer, "CALCULATEDLETHALITY", 1);
+      break;
+    case "2503039837"://Moff Gideon Leader
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Attack") {
+        AddCurrentTurnEffect($cardID, $currentPlayer);
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:maxCost=3");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "status=1", 1);
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to attack with");
+        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "ATTACK", 1);
+      }
+      break;
+    case "9690731982"://Reckless Gunslinger
+      if($from != "PLAY") {
+        DealDamageAsync(1, 1, "DAMAGE", $cardID);
+        DealDamageAsync(2, 1, "DAMAGE", $cardID);
+      }
+      break;
+    case "8712779685"://Outland TIE Vanguard
+      if($from != "PLAY") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:maxCost=3&THEIRALLY:maxCost=3");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "index=MYALLY-" . $playAlly->Index());
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to give experience");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "ADDEXPERIENCE", 1);
+      }
+      break;
+    case "5874342508"://Hotshot DL-44 Blaster
+      if($from == "RESOURCES") {
+        $ally = new Ally($target);
+        if(!$ally->IsExhausted() && $ally->PlayerID() == $currentPlayer) {
+          AddDecisionQueue("PASSPARAMETER", $currentPlayer, $target);
+          AddDecisionQueue("MZOP", $currentPlayer, "ATTACK", 1);
+        }
+      }
+      break;
+    case "6884078296"://Greef Karga
+      if($from != "PLAY") {
+        AddDecisionQueue("FINDINDICES", $currentPlayer, "DECKTOPXREMOVE," . 5);
+        AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+        AddDecisionQueue("FILTER", $currentPlayer, "LastResult-include-definedType-Upgrade", 1);
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose an upgrade to draw", 1);
+        AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
+        AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
+        AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
+        AddDecisionQueue("OP", $currentPlayer, "REMOVECARD");
+        AddDecisionQueue("ALLRANDOMBOTTOM", $currentPlayer, "DECK");
+      }
+      break;
+    case "1304452249"://Covetous Rivals
+      if($from != "PLAY") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:hasBountyOnly=true&THEIRALLY:hasBountyOnly=true");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit with bounty to deal 2 damage to");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,2", 1);
+      }
+      break;
+    case "2526288781"://Bossk
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Deal Damage/Buff") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:hasBountyOnly=true&THEIRALLY:hasBountyOnly=true");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit with bounty to deal 1 damage to");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,1", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+        AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+        AddDecisionQueue("YESNO", $currentPlayer, "if you want to give the unit +1 power", 1);
+        AddDecisionQueue("NOPASS", $currentPlayer, "-", 1);
+        AddDecisionQueue("PASSPARAMETER", $currentPlayer, "{0}", 1);
+        AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "2526288781", 1);
+      }
+      break;
+    case "7424360283"://Bo-Katan Kryze
+      global $CS_NumMandalorianAttacks;
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Deal Damage" && GetClassState($currentPlayer, $CS_NumMandalorianAttacks)) {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 1 damage to");
+        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,1", 1);
+      }
+      break;
+    case "0505904136"://Scanning Officer
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      $resources = &GetResourceCards($otherPlayer);
+      $numDestroyed = 0;
+      $cards = "";
+      for($i = 0; $i < 3 && count($resources) > 0; $i++) {
+        $index = (GetRandom() % (count($resources)/ResourcePieces())) * ResourcePieces();
+        if($cards != "") $cards .= ",";
+        $cards .= $resources[$index];
+        if(SmuggleCost($resources[$index], $otherPlayer, $index) >= 0) {
+          for($j=$i; $j<$i+ResourcePieces(); ++$j) unset($resources[$j]);
+          $resources = array_values($resources);
+          ++$numDestroyed;
+        }
+      }
+      for($i=0; $i<$numDestroyed; ++$i) {
+        AddTopDeckAsResource($otherPlayer);
+      }
+      RevealCards($cards);
+      break;
+    case "2560835268"://The Armorer
+      if($from != "PLAY") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:trait=Mandalorian");
+        AddDecisionQueue("OP", $currentPlayer, "MZTONORMALINDICES");
+        AddDecisionQueue("PREPENDLASTRESULT", $currentPlayer, "3-", 1);
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose up to 3 mandalorians to give a shield");
+        AddDecisionQueue("MULTICHOOSEUNIT", $currentPlayer, "<-", 1);
+        AddDecisionQueue("SPECIFICCARD", $currentPlayer, "MULTIGIVESHIELD", 1);
+      }
+      break;
+    case "3622749641"://Krrsantan
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      $numBounty = SearchCount(SearchAllies($otherPlayer, hasBountyOnly:true));
+      if($numBounty > 0) {
+        $playAlly->Ready();
+      }
+      break;
+    case "9765804063"://Discerning Veteran
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY:arena=Ground");
+      AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to capture");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "CAPTURE," . $playAlly->UniqueID(), 1);
+      break;
+    case "3765912000"://Take Captive
+      $targetAlly = new Ally($target, $currentPlayer);
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY:arena=" . CardArenas($targetAlly->CardID()));
+      AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to capture");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "CAPTURE," . $targetAlly->UniqueID(), 1);
+      break;
+    case "8877249477"://Legal Authority
+      $targetAlly = new Ally($target, $currentPlayer);
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY:maxAttack=" . ($targetAlly->CurrentPower()-1));
+      AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to capture");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "CAPTURE," . $targetAlly->UniqueID(), 1);
+      break;
+    case "5303936245"://Rival's Fall
+      MZChooseAndDestroy($currentPlayer, "MYALLY&THEIRALLY");
+      break;
+    case "8818201543"://Midnight Repairs
+      for($i=0; $i<8; ++$i) {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY", $i == 0 ? 0 : 1);
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to restore 1 (Remaining: " . (8-$i) . ")", $i == 0 ? 0 : 1);
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "RESTORE,1", 1);
+      }
+      break;
+    case "3012322434"://Give In To Your Hate
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 1 damage to");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,1", 1);
+      AddDecisionQueue("WRITELOG", $currentPlayer, "This is a partially manual card. Make sure you attack a unit with this unit for your next action.", 1);
+      break;
+    case "2090698177"://Street Gang Recruiter
+      MZMoveCard($currentPlayer, "MYDISCARD:trait=Underworld", "MYHAND", may:true, context:"Choose an uncerworld card to return with " . CardLink("2090698177", "2090698177"));
+      break;
+    case "7964782056"://Qi'Ra
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      LookAtHand($otherPlayer);
+      WriteLog("This is a partially manual card. Name the card in chat and make sure you don't play that card if you don't have enough resources.");
+      break;
+    case "5830140660"://Bazine Netal
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRHAND");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to discard");
+      AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZDESTROY", $currentPlayer, "-", 1);
+      AddDecisionQueue("DRAW", $otherPlayer, "-", 1);
+      break;
+    case "8645125292"://Covert Strength
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to restore 2 and give a experience token to");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "RESTORE,2", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "ADDEXPERIENCE", 1);
+      break;
+    case "4783554451"://First Light
+      if($from == "RESOURCES") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "index=MYALLY-" . $playAlly->Index());
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 4 damage to");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,4", 1);
+      }
+      break;
+    case "5351496853"://Gideon's Light Cruiser
+      if(ControlsNamedCard($currentPlayer, "Moff Gideon")) {
+        AddCurrentTurnEffect($cardID, $currentPlayer);//Cost discount
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYDISCARD:definedType=Unit;aspect=Villainy;maxCost=3&MYHAND:definedType=Unit;aspect=Villainy;maxCost=3");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to play");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "PLAYCARD", 1);
+      }
+      break;
+    case "5440730550"://Lando Calrissian
+      global $CS_AfterPlayedBy;
+      SetClassState($currentPlayer, $CS_AfterPlayedBy, $cardID);
+      AddCurrentTurnEffect($cardID, $currentPlayer);//Cost discount
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYRESOURCES");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to play");
+      AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZREMOVE", $currentPlayer, "-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "PLAYCARD", 1);
+      break;
+    case "040a3e81f3"://Lando Calrissian Leader Unit
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Smuggle") {
+        global $CS_AfterPlayedBy;
+        SetClassState($currentPlayer, $CS_AfterPlayedBy, $cardID);
+        AddCurrentTurnEffect($cardID, $currentPlayer);//Cost discount
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYRESOURCES");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to play");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZREMOVE", $currentPlayer, "-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "PLAYCARD", 1);
+      }
+      break;
+    case "0754286363"://The Mandalorian's Rifle
+      $ally = new Ally($target, $currentPlayer);
+      if(CardTitle($ally->CardID()) == "The Mandalorian") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "status=0");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to capture");
+        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "CAPTURE," . $ally->UniqueID(), 1);
+      }
+      break;
+    case "4643489029"://Palpatine's Return
+      AddCurrentTurnEffect($cardID, $currentPlayer);//Cost discount
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYDISCARD:definedType=Unit");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to play");
+      AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "PLAYCARD", 1);
+      break;
+    case "4717189843"://A New Adventure
+      AddCurrentTurnEffect($cardID, $currentPlayer);//Cost discount
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:maxCost=6&THEIRALLY:maxCost=6");
+      AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to return to hand");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "BOUNCE", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "PLAYCARD", 1);
+      break;
+    case "9757839764"://Adelphi Patrol Wing
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+      AddDecisionQueue("MZFILTER", $currentPlayer, "status=1");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to attack and give +2");
+      AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      if($initiativePlayer == $currentPlayer) {
+        AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+        AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "9757839764,HAND", 1);
+        AddDecisionQueue("PASSPARAMETER", $currentPlayer, "{0}", 1);
+      }
+      AddDecisionQueue("MZOP", $currentPlayer, "ATTACK", 1);
+      break;
+    case "7212445649"://Bravado
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to ready");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "READY", 1);
+      break;
+    case "2432897157"://Qi'Ra
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Shield") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 2 damage and give a shield");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,2", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "ADDSHIELD", 1);
+      }
+      break;
+    case "4352150438"://Rey
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Experience") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:maxAttack=2");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to give an experience");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "ADDEXPERIENCE", 1);
+      }
+      break;
+    case "5778949819"://Relentless Pursuit
+      $ally = new Ally($target, $currentPlayer);
+      if(TraitContains($ally->CardID(), "Bounty Hunter", $currentPlayer)) $ally->Attach("8752877738");//Shield Token
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY:maxCost=" . (CardCost($ally->CardID())));
+      AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to capture");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "CAPTURE," . $ally->UniqueID(), 1);
+      break;
+    case "6847268098"://Timely Intervention
+      AddCurrentTurnEffect($cardID, $currentPlayer, "PLAY");
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYHAND:definedType=Unit");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to put into play");
+      AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "PLAYCARD", 1);
+      break;
+    case "1973545191"://Unexpected Escape
+      $owner = MZPlayerID($currentPlayer, $target);
+      $ally = new Ally($target, $owner);
+      $ally->Exhaust();
+      RescueUnit($currentPlayer, $target);
+      break;
+    case "9552605383"://L3-37
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to rescue from (or pass for shield)");
+      AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("SPECIFICCARD", $currentPlayer, "L337");
+      break;
+    case "5818136044"://Xanadu Blood
+      XanaduBlood($currentPlayer, $playAlly->Index());
+      break;
+    case "1312599620"://Smuggler's Starfighter
+      if(SearchCount(SearchAllies($currentPlayer, trait:"Underworld")) > 0) {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to give -3 power");
+        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+        AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "1312599620,PLAY", 1);
+      }
+      break;
+    case "6853970496"://Slaver's Freighter
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      $theirAllies = &GetAllies($otherPlayer);
+      $numUpgrades = 0;
+      for($i=0; $i<count($theirAllies); $i+=AllyPieces()) {
+        $ally = new Ally("MYALLY-" . $i, $otherPlayer);
+        $numUpgrades += $ally->NumUpgrades();
+      }
+      if($numUpgrades > 0) {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:maxAttack=" . $numUpgrades . "&THEIRALLY:maxAttack=" . $numUpgrades);
+        if($index > -1) AddDecisionQueue("MZFILTER", $player, "index=MYALLY-" . $playAlly->Index());
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to ready");
+        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "READY", 1);
+      }
+      break;
+    case "2143627819"://The Marauder
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYDISCARD");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card in your discard to resource");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("SPECIFICCARD", $currentPlayer, "THEMARAUDER", 1);
+      break;
+    case "7642980906"://Stolen Landspeeder
+      if($from == "HAND") {
+        $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+        AddDecisionQueue("PASSPARAMETER", $otherPlayer, "THEIRALLY-" . $playAlly->Index(), 1);
+        AddDecisionQueue("MZOP", $otherPlayer, "TAKECONTROL", 1);
+      }
+      break;
+    case "2346145249"://Choose Sides
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+      AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a friendly unit to swap");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $otherPlayer, "TAKECONTROL", 1);
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY", 1);
+      AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader", 1);
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose an enemy unit to swap", 1);
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "TAKECONTROL", 1);
+      break;
+    case "0598830553"://Dryden Vos
+      PlayCaptive($currentPlayer, $target);
+      break;
+    case "1477806735"://Wookiee Warrior
+      if(SearchCount(SearchAllies($currentPlayer, trait:"Wookiee")) > 1) {
+        Draw($currentPlayer);
+      }
+      break;
+    case "5696041568"://Triple Dark Raid
+      global $CS_AfterPlayedBy;
+      SetClassState($currentPlayer, $CS_AfterPlayedBy, $cardID);
+      AddCurrentTurnEffect($cardID, $currentPlayer);
+      AddDecisionQueue("FINDINDICES", $currentPlayer, "DECKTOPXREMOVE," . 8);
+      AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+      AddDecisionQueue("FILTER", $currentPlayer, "LastResult-include-trait-Vehicle", 1);
+      AddDecisionQueue("CHOOSECARD", $currentPlayer, "<-", 1);
+      AddDecisionQueue("SETDQVAR", $currentPlayer, "1", 1);
+      AddDecisionQueue("OP", $currentPlayer, "REMOVECARD", 1);
+      AddDecisionQueue("ALLRANDOMBOTTOM", $currentPlayer, "DECK");
+      AddDecisionQueue("PASSPARAMETER", $currentPlayer, "{1}", 1);
+      AddDecisionQueue("OP", $currentPlayer, "PLAYCARD,DECK", 1);
+      break;
+    case "0911874487"://Fennec Shand
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Ambush") {
+        AddCurrentTurnEffect($cardID, $currentPlayer, "PLAY");
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYHAND:definedType=Unit;maxCost=4");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to put into play");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "PLAYCARD", 1);
+      }
+      break;
+    case "2b13cefced"://Fennec Shand
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Ambush") {
+        AddCurrentTurnEffect($cardID, $currentPlayer, "PLAY");
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYHAND:definedType=Unit;maxCost=4");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to put into play");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "PLAYCARD", 1);
+      }
+      break;
+    case "9828896088":
+      WriteLog("Spark of Hope is a partially manual card. Enforce the turn restriction manually.");
+      MZMoveCard($currentPlayer, "MYDISCARD:definedType=Unit", "MYRESOURCES", may:true);
+      AddDecisionQueue("PAYRESOURCES", $currentPlayer, "1,1", 1);
+      break;
+    case "9845101935"://This is the Way
+      WriteLog("This is a partially manual card. Enforce the type restriction manually.");
+      AddDecisionQueue("FINDINDICES", $currentPlayer, "DECKTOPXREMOVE," . 8);
+      AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+      AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
+      AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
+      AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
+      AddDecisionQueue("OP", $currentPlayer, "REMOVECARD", 1);
+      AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+      AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
+      AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
+      AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
+      AddDecisionQueue("OP", $currentPlayer, "REMOVECARD", 1);
+      AddDecisionQueue("ALLRANDOMBOTTOM", $currentPlayer, "DECK");
+      break;
+    case "8261033110"://Evacuate
+      $p1Allies = &GetAllies(1);
+      for($i=count($p1Allies)-AllyPieces(); $i>=0; $i-=AllyPieces()) {
+        if(!IsLeader($p1Allies[$i], 1))
+          MZBounce(1, "MYALLY-" . $i);
+      }
+      $p2Allies = &GetAllies(2);
+      for($i=count($p2Allies)-AllyPieces(); $i>=0; $i-=AllyPieces()) {
+        if(!IsLeader($p2Allies[$i], 1))
+          MZBounce(2, "MYALLY-" . $i);
+      }
+      break;
+    case "1910812527"://Final Showdown
+      AddCurrentTurnEffect("1910812527", $currentPlayer);
+      $myAllies = &GetAllies($currentPlayer);
+      for($i=0; $i<count($myAllies); $i+=AllyPieces())
+      {
+        $ally = new Ally("MYALLY-" . $i, $currentPlayer);
+        $ally->Ready();
+      }
+      break;
+    case "a742dea1f1"://Han Solo Red Unit
+    case "9226435975"://Han Solo Red
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Play") {
+        global $CS_AfterPlayedBy;
+        SetClassState($currentPlayer, $CS_AfterPlayedBy, $cardID);
+        AddCurrentTurnEffect("9226435975", $currentPlayer);
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYHAND:definedType=Unit");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to play");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "PLAYCARD", 1);
+      }
+      break;
+    case "7354795397"://No Bargain
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      PummelHit($otherPlayer);
+      Draw($currentPlayer);
+      break;
+    case "9270539174"://Wild Rancor
+      DamageAllAllies(2, "9270539174", arena:"Ground", except:"MYALLY-".LastAllyIndex($currentPlayer));
+      break;
+    case "2744523125"://Salacious Crumb
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Bounce") {
+        $salaciousCrumbIndex = SearchAlliesForCard($currentPlayer, $cardID);
+        MZBounce($currentPlayer, "MYALLY-" . $salaciousCrumbIndex);
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:arena=Ground&THEIRALLY:arena=Ground");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 1 damage to");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,1", 1);
+      } else if($from != "PLAY") {
+        Restore(1, $currentPlayer);
+      }
+      break;
+    case "0622803599"://Jabba the Hutt Leader
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Bounty") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to give bounty");
+        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+        AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "0622803599-2,PLAY", 1);
+      }
+      break;
+    case "f928681d36"://Jabba the Hutt Leader Unit
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Bounty") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to give bounty");
+        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+        AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "f928681d36-2,PLAY", 1);
+      }
+      break;
+    case "8090818642"://The Chaos of War
+      $p1Hand = &GetHand(1);
+      DamageTrigger(1, count($p1Hand)/HandPieces(), "DAMAGE", "8090818642");
+      $p2Hand = &GetHand(2);
+      DamageTrigger(2, count($p2Hand)/HandPieces(), "DAMAGE", "8090818642");
+      break;
+    case "7826408293"://Daring Raid
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY&THEIRALLY");
+      AddDecisionQueue("PREPENDLASTRESULT", $currentPlayer, "MYCHAR-0,THEIRCHAR-0,");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose something to deal 2 damage to");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,2", 1);
+      break;
+    case "4772866341"://Pillage
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      PummelHit($otherPlayer);
+      PummelHit($otherPlayer);
+      break;
+    case "5984647454"://Enforced Loyalty
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose something to sacrifice");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "DESTROY", 1);
+      AddDecisionQueue("DRAW", $currentPlayer, "-", 1);
+      AddDecisionQueue("DRAW", $currentPlayer, "-", 1);
+      break;
+    case "6234506067"://Cassian Andor
+      if($from == "RESOURCES") $playAlly->Ready();
+      break;
+    case "5169472456"://Chewbacca Pykesbane
+      if($from != "PLAY") {
+        MZChooseAndDestroy($currentPlayer, "MYALLY:maxHealth=5&THEIRALLY:maxHealth=5", may:true, filter:"index=MYALLY-" . $playAlly->Index());
+      }
+      break;
+    case "6962053552"://Desperate Attack
+      if($from != "PLAY") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "status=1");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to attack and give +2");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+        AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "6962053552,HAND", 1);
+        AddDecisionQueue("PASSPARAMETER", $currentPlayer, "{0}");
+        AddDecisionQueue("MZOP", $currentPlayer, "ATTACK", 1);
+      }
+      break;
+    case "3803148745"://Ruthless Assassin
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 2 damage to");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,2", 1);
+      break;
+    case "4057912610"://Bounty Guild Initiate
+      if($from != "PLAY" && SearchCount(SearchAllies($currentPlayer, trait:"Bounty Hunter")) > 1) {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY:arena=Ground");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to deal 2 damage to");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,2", 1);
+      }
+      break;
+    case "6475868209"://Criminal Muscle
+      if($from != "PLAY") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY&MYALLY");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "unique=1");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "BOUNCE", 1);
+      }
+      break;
+    case "1743599390"://Trandoshan Hunters
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      if(SearchCount(SearchAllies($otherPlayer, hasBountyOnly:true)) > 0) $playAlly->Attach("2007868442");//Experience token
+      break;
+    case "1141018768"://Commission
+      WriteLog("This is a partially manual card. Enforce the type restriction manually.");
+      AddDecisionQueue("FINDINDICES", $currentPlayer, "DECKTOPXREMOVE," . 10);
+      AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+      AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1);
+      AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
+      AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
+      AddDecisionQueue("OP", $currentPlayer, "REMOVECARD", 1);
+      AddDecisionQueue("ALLRANDOMBOTTOM", $currentPlayer, "DECK");
+      break;
+    case "9596662994"://Finn
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Shield") {
+        DefeatUpgrade($currentPlayer, search:"MYALLY");
+        AddDecisionQueue("PASSPARAMETER", $currentPlayer, "{0}", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "ADDSHIELD", 1);
+      }
+      break;
+    case "7578472075"://Let the Wookie Win
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      AddDecisionQueue("BUTTONINPUT", $otherPlayer, "Ready Resources,Ready Unit");
+      AddDecisionQueue("MODAL", $currentPlayer, "LETTHEWOOKIEWIN");
+      break;
+    case "8380936981"://Jabba's Rancor
+      JabbasRancor($currentPlayer, $playAlly->Index());
+      break;
+    case "2750823386"://Look the Other Way
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to exhaust");
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+      AddDecisionQueue("YESNO", $otherPlayer, "if you want to pay 2 to prevent the unit from being exhausted", 1);
+      AddDecisionQueue("NOPASS", $otherPlayer, "-", 1);
+      AddDecisionQueue("PAYRESOURCES", $otherPlayer, "2", 1);
+      AddDecisionQueue("ELSE", $currentPlayer, "-");
+      AddDecisionQueue("PASSPARAMETER", $currentPlayer, "{0}", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "REST", 1);
+      break;
+    case "4002861992"://DJ (Blatant Thief)
+      if($from == "RESOURCES") {
+        $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+        $theirResources = &GetResourceCards($otherPlayer);
+        $resourceCard = RemoveResource($otherPlayer, count($theirResources) - ResourcePieces());
+        AddResources($resourceCard, $currentPlayer, "PLAY", "DOWN");
+      }
+      break;
+    case "7718080954"://Frozen in Carbonite
+      AddDecisionQueue("PASSPARAMETER", $currentPlayer, $target);
+      AddDecisionQueue("MZOP", $currentPlayer, "REST", 1);
+      break;
+    case "6117103324"://Jetpack
+      $ally = new Ally($target, $currentPlayer);
+      $ally->AddEffect("6117103324");
+      $ally->Attach("8752877738");//Shield Token
+      break;
+    case "1386874723"://Omega (Part of the Squad)
+      if($from != "PLAY") {
+        AddDecisionQueue("FINDINDICES", $currentPlayer, "DECKTOPXREMOVE," . 5);
+        AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+        AddDecisionQueue("FILTER", $currentPlayer, "LastResult-include-trait-Clone", 1);
+        AddDecisionQueue("MAYCHOOSECARD", $currentPlayer, "<-", 1); //The search window only shows takeable cards, same as Grand Moff Tarkin unit's trigger(which I copied the code from). Ideally the player would get to see all the cards in the search(to see what's getting sent to the bottom).
+        AddDecisionQueue("ADDHAND", $currentPlayer, "-", 1);
+        AddDecisionQueue("REVEALCARDS", $currentPlayer, "-", 1);
+        AddDecisionQueue("OP", $currentPlayer, "REMOVECARD");
+        AddDecisionQueue("ALLRANDOMBOTTOM", $currentPlayer, "DECK");
+      }
+      break;
+    case "6151970296"://Bounty Posting
+      MZMoveCard($currentPlayer, "MYDECK:trait=Bounty", "MYHAND", isReveal:true, may:true, context:"Choose a bounty to add to your hand");
+      AddDecisionQueue("YESNO", $currentPlayer, "if you want to play the upgrade", 1);
+      AddDecisionQueue("NOPASS", $currentPlayer, "-", 1);
+      AddDecisionQueue("FINDINDICES", $currentPlayer, "MZLASTHAND", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "PLAYCARD", 1);
+      break;
+    case "8576088385"://Detention Block Rescue
+      $owner = MZPlayerID($currentPlayer, $target);
+      $ally = new Ally($target, $owner);
+      $damage = count($ally->GetCaptives()) > 0 ? 6 : 3;
+      $ally->DealDamage($damage);
+      break;
+    case "9999079491"://Mystic Reflection
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a card to debuff", 1);
+      AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("SETDQVAR", $currentPlayer, 0, 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+      AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $otherPlayer, "9999079491,HAND", 1);
+      if(SearchCount(SearchAllies($currentPlayer, trait:"Force")) > 0) {
+        AddDecisionQueue("PASSPARAMETER", $currentPlayer, "{0}", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "REDUCEHEALTH,2", 1);
+      }
+      break;
+    case "5576996578"://Endless Legions
+      AddDecisionQueue("SPECIFICCARD", $currentPlayer, "ENDLESSLEGIONS");
+      break;
+    case "8095362491"://Frontier Trader
+      if($from != "PLAY") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYRESOURCES");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a resource to return to hand", 1);
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "BOUNCE", 1);
+        AddDecisionQueue("YESNO", $currentPlayer, "if you want to add a resource from the top of your deck", 1);
+        AddDecisionQueue("NOPASS", $currentPlayer, "-", 1);
+        AddDecisionQueue("OP", $currentPlayer, "ADDTOPDECKASRESOURCE", 1);
+      }
+        break;
+    case "8709191884"://Hunter (Outcast Sergeant)
+      $abilityName = GetResolvedAbilityName($cardID, $from);
+      if($abilityName == "Replace Resource") {
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYRESOURCES");
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a resource to reveal", 1);
+        AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("SPECIFICCARD", $currentPlayer, "HUNTEROUTCASTSERGEANT", 1);
+      }
+      break;
+    case "4663781580"://Swoop Down
+      $otherPlayer = $currentPlayer == 1 ? 2 : 1;
+      AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "MYALLY:arena=Space");
+      AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit to attack with", 1);
+      AddDecisionQueue("CHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+      AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+      AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "4663781580,HAND", 1);
+      AddDecisionQueue("ADDCURRENTEFFECT", $otherPlayer, "4663781580", 1);
+      AddDecisionQueue("PASSPARAMETER", $currentPlayer, "{0}", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "ATTACK", 1);
+      break;
+    case "9752523457"://Finalizer
+      $allies = &GetAllies($currentPlayer);
+      for($i=0; $i<count($allies); $i+=AllyPieces()) {
+        $ally = new Ally("MYALLY-" . $i, $currentPlayer);
+        AddDecisionQueue("MULTIZONEINDICES", $currentPlayer, "THEIRALLY");
+        AddDecisionQueue("MZFILTER", $currentPlayer, "definedType=Leader", 1);
+        AddDecisionQueue("SETDQCONTEXT", $currentPlayer, "Choose a unit for " . CardLink($ally->CardID(), $ally->CardID()) . " to capture (must be in same arena)", 1);
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $currentPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $currentPlayer, "CAPTURE," . $ally->UniqueID(), 1);
       }
       break;
     default: break;
@@ -3571,6 +4373,16 @@ function AfterPlayedByAbility($cardID) {
   $index = LastAllyIndex($currentPlayer);
   $ally = new Ally("MYALLY-" . $index, $currentPlayer);
   switch($cardID) {
+    case "040a3e81f3"://Lando Calrissian Leader Unit
+    case "5440730550"://Lando Calrissian
+      AddDecisionQueue("OP", $currentPlayer, "ADDTOPDECKASRESOURCE");
+      MZChooseAndDestroy($currentPlayer, "MYRESOURCES", context:"Choose a resource to destroy");
+      break;
+    case "a742dea1f1"://Han Solo Red Unit
+    case "9226435975"://Han Solo Red
+      AddDecisionQueue("OP", $currentPlayer, "GETLASTALLYMZ");
+      AddDecisionQueue("MZOP", $currentPlayer, "DEALDAMAGE,2", 1);
+      break;
     case "3572356139"://Chewbacca, Walking Carpet
       AddDecisionQueue("OP", $currentPlayer, "GETLASTALLYMZ");
       AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
@@ -3601,6 +4413,12 @@ function AfterPlayedByAbility($cardID) {
       break;
     case "8968669390"://U-Wing Reinforcement
       SearchCurrentTurnEffects("8968669390", $currentPlayer, remove:true);
+      break;
+    case "5696041568"://Triple Dark Raid
+      AddDecisionQueue("OP", $currentPlayer, "GETLASTALLYMZ", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "READY", 1);
+      AddDecisionQueue("MZOP", $currentPlayer, "GETUNIQUEID", 1);
+      AddDecisionQueue("ADDLIMITEDCURRENTEFFECT", $currentPlayer, "5696041568-2,HAND", 1);
       break;
     default: break;
   }
@@ -3640,12 +4458,14 @@ function DestroyAllAllies()
   $theirAllies = &GetAllies($otherPlayer);
   for($i=count($theirAllies) - AllyPieces(); $i>=0; $i-=AllyPieces())
   {
-    DestroyAlly($otherPlayer, $i);
+    $ally = new Ally("MYALLY-" . $i, $otherPlayer);
+    $ally->Destroy();
   }
   $allies = &GetAllies($currentPlayer);
   for($i=count($allies) - AllyPieces(); $i>=0; $i-=AllyPieces())
   {
-    DestroyAlly($currentPlayer, $i);
+    $ally = new Ally("MYALLY-" . $i, $currentPlayer);
+    $ally->Destroy();
   }
 }
 
@@ -3660,7 +4480,7 @@ function DamagePlayerAllies($player, $damage, $source, $type, $arena="")
   }
 }
 
-function DamageAllAllies($amount, $source, $alsoRest=false, $alsoFreeze=false, $arena="")
+function DamageAllAllies($amount, $source, $alsoRest=false, $alsoFreeze=false, $arena="", $except="")
 {
   global $currentPlayer;
   $otherPlayer = $currentPlayer == 1 ? 2 : 1;
@@ -3677,6 +4497,7 @@ function DamageAllAllies($amount, $source, $alsoRest=false, $alsoFreeze=false, $
   for($i=count($allies) - AllyPieces(); $i>=0; $i-=AllyPieces())
   {
     if(!ArenaContains($allies[$i], $arena, $currentPlayer)) continue;
+    if($except != "" && $except == ("MYALLY-" . $i)) continue;
     if($alsoRest) $allies[$i+1] = 1;
     if($alsoFreeze) $allies[$i+3] = 1;
     $ally = new Ally("MYALLY-$i");
@@ -3753,91 +4574,24 @@ function PlayRequiresTarget($cardID)
     case "2758597010": return 6;//Maximum Firepower
     case "2202839291": return 6;//Don't Get Cocky
     case "1701265931": return 6;//Moment of Glory
+    case "3765912000": return 7;//Take Captive
+    case "5778949819": return 7;//Relentless Pursuit
+    case "1973545191": return 6;//Unexpected Escape
+    case "0598830553": return 6;//Dryden Vos
+    case "8576088385": return 6;//Detention Block Rescue
     default: return -1;
   }
 }
-
-  function ArcaneDamage($cardID)
-  {
-    global $currentPlayer;
-    switch($cardID)
-    {
-      default: return 0;
-    }
-  }
-
-  //Parameters:
-  //Player = Player controlling the arcane effects
-  //target = See function PlayRequiresTarget
-  function DealArcane($damage, $target=0, $type="PLAYCARD", $source="NA", $fromQueue=false, $player=0, $mayAbility=false, $limitDuplicates=false, $skipHitEffect=false, $resolvedTarget="", $nbArcaneInstance=1)
-  {
-    global $currentPlayer, $CS_ArcaneTargetsSelected;
-    if ($player == 0) $player = $currentPlayer;
-    if ($damage > 0) {
-      //$damage += CurrentEffectArcaneModifier($source, $player) * $nbArcaneInstance;
-      if ($type != "PLAYCARD") WriteLog(CardLink($source, $source) . " is dealing " . $damage . " arcane damage.");
-      if ($fromQueue) {
-        if (!$limitDuplicates) {
-          PrependDecisionQueue("PASSPARAMETER", $player, "{0}");
-          PrependDecisionQueue("SETCLASSSTATE", $player, $CS_ArcaneTargetsSelected); //If already selected for arcane multiselect (e.g. Singe/Azvolai)
-          PrependDecisionQueue("PASSPARAMETER", $player, "-");
-        }
-        if (!$skipHitEffect) PrependDecisionQueue("ARCANEHITEFFECT", $player, $source, 1);
-        PrependDecisionQueue("DEALARCANE", $player, $damage . "-" . $source . "-" . $type, 1);
-        if ($resolvedTarget != "") {
-          PrependDecisionQueue("PASSPARAMETER", $currentPlayer, $resolvedTarget);
-        } else {
-          PrependDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
-          if ($mayAbility) {
-            PrependDecisionQueue("MAYCHOOSEMULTIZONE", $player, "<-", 1);
-          } else {
-            PrependDecisionQueue("CHOOSEMULTIZONE", $player, "<-", 1);
-          }
-          PrependDecisionQueue("SETDQCONTEXT", $player, "Choose a target for <0>");
-          PrependDecisionQueue("FINDINDICES", $player, "ARCANETARGET," . $target);
-          PrependDecisionQueue("SETDQVAR", $currentPlayer, "0");
-          PrependDecisionQueue("PASSPARAMETER", $currentPlayer, $source);
-        }
-      } else {
-        if ($resolvedTarget != "") {
-          AddDecisionQueue("PASSPARAMETER", $currentPlayer, $resolvedTarget);
-        } else {
-          AddDecisionQueue("PASSPARAMETER", $currentPlayer, $source);
-          AddDecisionQueue("SETDQVAR", $currentPlayer, "0");
-          AddDecisionQueue("FINDINDICES", $player, "ARCANETARGET," . $target);
-          AddDecisionQueue("SETDQCONTEXT", $player, "Choose a target for <0>");
-          if ($mayAbility) {
-            AddDecisionQueue("MAYCHOOSEMULTIZONE", $player, "<-", 1);
-          } else {
-            AddDecisionQueue("CHOOSEMULTIZONE", $player, "<-", 1);
-          }
-          AddDecisionQueue("SETDQVAR", $currentPlayer, "0", 1);
-        }
-        AddDecisionQueue("DEALARCANE", $player, $damage . "-" . $source . "-" . $type, 1);
-        if (!$skipHitEffect) AddDecisionQueue("ARCANEHITEFFECT", $player, $source, 1);
-        if (!$limitDuplicates) {
-          AddDecisionQueue("PASSPARAMETER", $player, "-");
-          AddDecisionQueue("SETCLASSSTATE", $player, $CS_ArcaneTargetsSelected);
-          AddDecisionQueue("PASSPARAMETER", $player, "{0}");
-        }
-      }
-    }
-  }
-
-  function ArcaneHitEffect($player, $source, $target, $damage)
-  {
-
-  }
 
   //target type return values
   //-1: no target
   // 0: My Hero + Their Hero
   // 1: Their Hero only
   // 2: Any Target
-  // 3: Their Allies
+  // 3: Their Units
   // 4: My Hero only (For afflictions)
-  // 6: Any ally
-  // 7: Friendly ally
+  // 6: Any unit
+  // 7: Friendly unit
   function GetArcaneTargetIndices($player, $target)
   {
     global $CS_ArcaneTargetsSelected;

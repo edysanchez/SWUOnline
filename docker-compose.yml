@@ -6,9 +6,7 @@ services:
       context: .
     restart: always
     volumes:
-      - "./:/var/www/html/SWUOnline"
-      - "./docker/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini"
-
+      - "./:/var/www/html/SWUOnline:Z"
     command: bash "/var/www/html/SWUOnline/docker-entrypoint.sh"
     ports:
       - "8080:80"

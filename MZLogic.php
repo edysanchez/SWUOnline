@@ -27,8 +27,14 @@ function MZDestroy($player, $lastResult)
       case "THEIRHAND": $lastResult = DiscardCard($otherPlayer, $mzIndex[1]); break;
       case "MYCHAR": $lastResult = DestroyCharacter($player, $mzIndex[1]); break;
       case "THEIRCHAR": $lastResult = DestroyCharacter($otherPlayer, $mzIndex[1]); break;
-      case "MYALLY": $lastResult = DestroyAlly($player, $mzIndex[1]); break;
-      case "THEIRALLY": $lastResult = DestroyAlly($otherPlayer, $mzIndex[1]); break;
+      case "MYALLY":
+        $ally = new Ally("MYALLY-" . $mzIndex[1], $player);
+        $lastResult = $ally->Destroy();
+        break;
+      case "THEIRALLY":
+        $ally = new Ally("MYALLY-" . $mzIndex[1], $otherPlayer);
+        $lastResult = $ally->Destroy();
+        break;
       case "MYAURAS": $lastResult = DestroyAura($player, $mzIndex[1]); break;
       case "THEIRAURAS": $lastResult = DestroyAura($otherPlayer, $mzIndex[1]); break;
       case "MYITEMS": $lastResult = DestroyItemForPlayer($player, $mzIndex[1]); break;
@@ -58,8 +64,8 @@ function MZRemove($player, $lastResult)
       case "THEIRBANISH": RemoveBanish($otherPlayer, $mzIndex[1]); break;
       case "MYALLY": $lastResult = RemoveAlly($player, $mzIndex[1]); break;
       case "THEIRALLY": $lastResult = RemoveAlly($otherPlayer, $mzIndex[1]); break;
-      case "MYARS": $lastResult = RemoveArsenal($player, $mzIndex[1]); break;
-      case "THEIRARS": $lastResult = RemoveArsenal($otherPlayer, $mzIndex[1]); break;
+      case "MYRESOURCES": $lastResult = RemoveArsenal($player, $mzIndex[1]); break;
+      case "THEIRRESOURCES": $lastResult = RemoveArsenal($otherPlayer, $mzIndex[1]); break;
       case "MYPITCH": RemovePitch($player, $mzIndex[1]); break;
       case "THEIRPITCH": RemovePitch($otherPlayer, $mzIndex[1]); break;
       case "MYHAND": $lastResult = RemoveHand($player, $mzIndex[1]); break;
@@ -305,23 +311,26 @@ function MZWakeUp($player, $target)
 function MZBounce($player, $target)
 {
   global $CS_NumLeftPlay;
-  $pieces = explode("-", $target);
-  $player = (substr($pieces[0], 0, 2) == "MY" ? $player : ($player == 1 ? 2 : 1));
-  $zone = &GetMZZone($player, $pieces[0]);
-  switch($pieces[0]) {
+  $mzArr = explode("-", $target);
+  $player = (substr($mzArr[0], 0, 2) == "MY" ? $player : ($player == 1 ? 2 : 1));
+  $zone = &GetMZZone($player, $mzArr[0]);
+  switch($mzArr[0]) {
     case "THEIRALLY": case "MYALLY":
       $allies = &GetAllies($player);
-      $owner = $allies[$pieces[1]+11];
-      $cardID = RemoveAlly($player, $pieces[1]);
-      AddHand($owner, $cardID);
+      $owner = $allies[$mzArr[1]+11];
+      $cardID = RemoveAlly($player, $mzArr[1]);
       IncrementClassState($player, $CS_NumLeftPlay);
-      break;
+      $index = AddHand($owner, $cardID);
+      return substr($mzArr[0], 0, 2) == "MY" ? "MYHAND-" . $index : "THEIRHAND-" . $index;
     case "MYRESOURCES": case "THEIRRESOURCES":
-      $cardID = RemoveResource($player, $pieces[1]);
-      AddHand($player, $cardID);
-      break;
+      $cardID = RemoveResource($player, $mzArr[1]);
+      //TODO : to fix opponent card in my resources (Traitorous + SLT) we need to add owner information on resources
+      $owner = $player;
+      $index = AddHand($owner, $cardID);
+      return substr($mzArr[0], 0, 2) == "MY" ? "MYHAND-" . $index : "THEIRHAND-" . $index;
     default: break;
   }
+  return -1;
 }
 
 function MZSink($player, $target)

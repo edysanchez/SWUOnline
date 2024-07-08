@@ -10,7 +10,7 @@ if (!isset($_SESSION["useruid"])) {
   exit;
 }
 $useruid = $_SESSION["useruid"];
-if ($useruid != "OotTheMonk" && $useruid != "Launch" && $useruid != "LaustinSpayce" && $useruid != "Star_Seraph" && $useruid != "Tower") {
+if ($useruid != "OotTheMonk" && $useruid != "love" && $useruid != "Cazargar") {
   echo ("You must log in to use this page.");
   exit;
 }
@@ -35,6 +35,7 @@ echo ("<br><br><form  action='./BanPlayer.php'>");
 <?php
 
 
+$conn = GetDBConnection();
 $sql = "SELECT usersUid FROM users ORDER BY usersId DESC LIMIT 20";
 $stmt = mysqli_stmt_init($conn);
 if (!mysqli_stmt_prepare($stmt, $sql)) {
@@ -52,6 +53,7 @@ $userData = mysqli_stmt_get_result($stmt);
 while ($row = mysqli_fetch_array($userData, MYSQLI_NUM)) {
   echo ($row[0] . "<BR>");
 }
+mysqli_close($conn);
 
 
 echo ("<br><h1>Banned IPs:</h1>");

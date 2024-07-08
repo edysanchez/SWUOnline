@@ -55,7 +55,7 @@ function ModalAbilities($player, $card, $lastResult)
             Restore(5, $player);
             break;
           case "Defeat":
-            MZChooseAndDestroy($player, "THEIRALLY:maxHealth=3", may:true);
+            MZChooseAndDestroy($player, "MYALLY:maxHealth=3&THEIRALLY:maxHealth=3", may:true);
             break;
           case "Shield":
             AddDecisionQueue("SETDQCONTEXT", $player, "Choose a unit to give a shield");
@@ -145,8 +145,8 @@ function ModalAbilities($player, $card, $lastResult)
             Draw($player);
             break;
           case "Defeat_Upgrades":
-            DefeatUpgrade($player);
-            DefeatUpgrade($player);
+            DefeatUpgrade($player, may:true);
+            DefeatUpgrade($player, may:true);
             break;
           case "Ready_Unit":
             AddDecisionQueue("MULTIZONEINDICES", $player, "MYALLY:maxAttack=3&THEIRALLY:maxAttack=3");
@@ -162,6 +162,22 @@ function ModalAbilities($player, $card, $lastResult)
             break;
           default: break;
         }
+      }
+      return 1;
+    case "LETTHEWOOKIEWIN":
+      switch($lastResult) {
+        case "Ready_Resources":
+          ReadyResource($player, 6);
+          break;
+        case "Ready_Unit":
+          AddDecisionQueue("MULTIZONEINDICES", $player, "MYALLY");
+          AddDecisionQueue("SETDQCONTEXT", $player, "Choose a unit to attack with");
+          AddDecisionQueue("CHOOSEMULTIZONE", $player, "<-", 1);
+          AddDecisionQueue("MZOP", $player, "READY", 1);
+          AddDecisionQueue("MZOP", $player, "ADDEFFECT,7578472075", 1);
+          AddDecisionQueue("MZOP", $player, "ATTACK", 1);
+          break;
+        default: break;
       }
       return 1;
     default: return "";
@@ -203,7 +219,7 @@ function SpecificCardLogic($player, $card, $lastResult)
       if(TraitContains($cardID, "Force", $player)) Draw($player);
       break;
     case "GALACTICAMBITION":
-      DealArcane(CardCost($lastResult), 4, "PLAYCARD", "5494760041", player:$player);
+      DealDamageAsync($player, CardCost($lastResult), "DAMAGE", "5494760041");
       break;
     case "C3PO":
       $deck = new Deck($player);
@@ -280,13 +296,13 @@ function SpecificCardLogic($player, $card, $lastResult)
       PrependDecisionQueue("OP", $player, "DEFEATUPGRADE", 1);
       PrependDecisionQueue("MAYCHOOSECARD", $player, "<-", 1);
       PrependDecisionQueue("SETDQCONTEXT", $player, "Choose an upgrade to defeat", 1);
-      PrependDecisionQueue("MZOP", $player, "GETSUBCARDS", 1);
+      PrependDecisionQueue("MZOP", $player, "GETUPGRADES", 1);
       PrependDecisionQueue("PASSPARAMETER", $player, "{0}", 1);
       break;
     case "RESTOCK":
       $arr = [];
-      for($i = count($lastResult) - DiscardPieces(); $i >= 0; $i -= DiscardPieces()) {
-        array_push($arr, RemoveGraveyard($player, $lastResult[$i]));
+      for($i = count($lastResult); $i >= 0; --$i) {
+        if($lastResult[$i] != "") array_push($arr, RemoveGraveyard($player, $lastResult[$i]));
       }
       RevealCards(implode(",", $arr), $player);
       if(count($arr) > 0) {
@@ -298,18 +314,18 @@ function SpecificCardLogic($player, $card, $lastResult)
       }
       break;
     case "BAMBOOZLE":
-      $upgrades = [];
+      $upgradesReturned = [];
       $owner = MZPlayerID($player, $lastResult);
       $ally = new Ally($lastResult, $owner);
-      $subcards = $ally->GetSubcards();
-      for($i=0; $i<count($subcards); ++$i) {
-        if(!IsToken($subcards[$i])) AddHand($owner, $subcards[$i]);
-        $ally->DealDamage(CardHP($subcards[$i]));
-        array_push($upgrades, $subcards[$i]);
+      $upgrades = $ally->GetUpgrades();
+      for($i=0; $i<count($upgrades); ++$i) {
+        if(!IsToken($upgrades[$i])) AddHand($owner, $upgrades[$i]);
+        $ally->DealDamage(CardHP($upgrades[$i]));
+        array_push($upgradesReturned, $upgrades[$i]);
       }
       $ally->ClearSubcards();
-      for($i=0; $i<count($upgrades); ++$i) {
-        UpgradeLeftPlay($upgrades[$i], $ally->PlayerID(), $ally->Index());
+      for($i=0; $i<count($upgradesReturned); ++$i) {
+        UpgradeLeftPlay($upgradesReturned[$i], $ally->PlayerID(), $ally->Index());
       }
       return $lastResult;
     case "DONTGETCOCKY":
@@ -362,6 +378,12 @@ function SpecificCardLogic($player, $card, $lastResult)
         $ally->Attach("2007868442");//Experience token
       }
       return $lastResult;
+    case "MULTIGIVESHIELD":
+      for($i=0; $i<count($lastResult); ++$i) {
+        $ally = new Ally("MYALLY-" . $lastResult[$i], $player);
+        $ally->Attach("8752877738");//Shield Token
+      }
+      return $lastResult;
     case "IHADNOCHOICE":
       $cards = explode(",", MZSort($dqVars[0]));
       for($i=count($cards)-1; $i>=0; --$i) {
@@ -372,6 +394,93 @@ function SpecificCardLogic($player, $card, $lastResult)
         }
       }
       return $lastResult;
+    case "CALCULATEDLETHALITY":
+      $owner = MZPlayerID($player, $lastResult);
+      $target = new Ally($lastResult, $owner);
+      $numUpgrades = $target->NumUpgrades();
+      $target->Destroy();
+      if($numUpgrades > 0) {
+        for($i=0; $i<$numUpgrades; ++$i) PrependDecisionQueue("MZOP", $player, "ADDEXPERIENCE", 1);
+        PrependDecisionQueue("CHOOSEMULTIZONE", $player, "<-", 1);
+        PrependDecisionQueue("SETDQCONTEXT", $player, "Choose a unit to give " . $numUpgrades . " experience");
+        PrependDecisionQueue("MULTIZONEINDICES", $player, "MYALLY");
+      }
+      return $lastResult;
+    case "L337":
+      $target = $lastResult;
+      if($target == "PASS") {
+        $allies = &GetAllies($player);
+        $ally = new Ally("MYALLY-" . count($allies) - AllyPieces(), $player);
+        $ally->Attach("8752877738");//Shield Token
+      } else {
+        $owner = MZPlayerID($player, $target);
+        $ally = new Ally($target, $owner);
+        RescueUnit($player, $target);
+      }
+      return $lastResult;
+    case "XANADUBLOOD":
+      if($lastResult == "Resource") {
+        WriteLog(CardLink("5818136044", "5818136044") . " exhausts a resource");
+        ExhaustResource($player == 1 ? 2 : 1, 1);
+      } else {
+        WriteLog(CardLink("5818136044", "5818136044") . " exhausts a unit");
+        PrependDecisionQueue("MZOP", $player, "REST", 1);
+        PrependDecisionQueue("CHOOSEMULTIZONE", $player, "<-", 1);
+        PrependDecisionQueue("SETDQCONTEXT", $player, "Choose a unit to exhaust");
+        PrependDecisionQueue("MULTIZONEINDICES", $player, "THEIRALLY");
+      }
+      return $lastResult;
+    case "THEMARAUDER":
+      $cardID = GetMZCard($player, $lastResult);
+      if(UnitCardSharesName($cardID, $player))
+      {
+        $mzArr = explode(",", $lastResult);
+        RemoveDiscard($player, $mzArr[1]);
+        AddResources($cardID, $player, "GY", "DOWN", isExhausted:1);
+      }
+      return $lastResult;
+    case "ROSETICO":
+      $ally = new Ally($lastResult, $player);
+      if($ally->HasUpgrade("8752877738"))//Shield token
+      {
+        $ally->DefeatUpgrade("8752877738");//Shield token
+        $ally->Attach("2007868442");//Experience token
+        $ally->Attach("2007868442");//Experience token
+      }
+      return $lastResult;
+    case "DOCTORAPHRA":
+      $index = GetRandom() % count($lastResult);
+      $cardID = RemoveDiscard($player, $lastResult[$index]);
+      WriteLog(CardLink($cardID, $cardID) . " is returned by " . CardLink("0254929700", "0254929700"));
+      AddHand($player, $cardID);
+      return $lastResult;
+    case "ENDLESSLEGIONS":
+      $resources = &GetResourceCards($player);
+      $cardsToPlay = [];
+      AddCurrentTurnEffect("5576996578", $player);
+      for($i=count($resources)-ResourcePieces(); $i>=0; $i-=ResourcePieces()) {
+        if(DefinedTypesContains($resources[$i], "Unit", $player)) {
+          $resourceCard = RemoveResource($player, $i);
+          array_push($cardsToPlay, $resourceCard);
+        }
+      }
+      for($i=0; $i<count($cardsToPlay); ++$i) {
+        PlayCard($cardsToPlay[$i], "RESOURCES");
+      }
+      return 1;
+    case "HUNTEROUTCASTSERGEANT":
+      $chosenResourceIndex = explode("-", $lastResult)[1];
+      $resourceCardID = &GetResourceCards($player)[$chosenResourceIndex];
+      $resourceTitle = CardTitle($resourceCardID);
+      RevealCards($resourceCardID, $player, "RESOURCES");
+      if(CardIsUnique($resourceCardID) && SearchAlliesForTitle($player, $resourceTitle) != "") {
+        //Technically only the ally in play needs to be unique, but I'm going to assume that if the resource card is unique
+        //and the ally in play shares a name with it then the ally in play is unique.
+        //If for some reason cards are printed that make this not guaranteed we can make the check more rigorous.
+        MZBounce($player, $lastResult);
+        AddTopDeckAsResource($player);
+      }
+      return 1;
     default: return "";
   }
 }

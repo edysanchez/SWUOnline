@@ -42,11 +42,29 @@ function CompletesAttackEffect($cardID) {
       if(GetClassState($defPlayer, $CS_NumLeftPlay) > 0) ReadyResource($mainPlayer, 2);
       break;
     case "9647945674"://Zeb Orrelios
-      AddDecisionQueue("SETDQCONTEXT", $mainPlayer, "Choose a unit to deal 4 damage to");
-      AddDecisionQueue("MULTIZONEINDICES", $mainPlayer, "THEIRALLY:arena=Ground");
-      AddDecisionQueue("MAYCHOOSEMULTIZONE", $mainPlayer, "<-", 1);
-      AddDecisionQueue("MZOP", $mainPlayer, "DEALDAMAGE,4", 1);
+      if(GetAttackTarget() == "NA") {//This means the target was defeated
+        AddDecisionQueue("MULTIZONEINDICES", $mainPlayer, "THEIRALLY:arena=Ground");
+        AddDecisionQueue("SETDQCONTEXT", $mainPlayer, "Choose a unit to deal 4 damage to");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $mainPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $mainPlayer, "DEALDAMAGE,4", 1);
+      }
       break;
+    case "0518313150"://Embo
+      if(GetAttackTarget() == "NA") {//This means the target was defeated
+        AddDecisionQueue("MULTIZONEINDICES", $mainPlayer, "MYALLY&THEIRALLY");
+        AddDecisionQueue("SETDQCONTEXT", $mainPlayer, "Choose a unit to restore 2 damage");
+        AddDecisionQueue("MAYCHOOSEMULTIZONE", $mainPlayer, "<-", 1);
+        AddDecisionQueue("MZOP", $mainPlayer, "RESTORE,2", 1);
+      }
+      break;
+    case "1086021299"://Arquitens Assault Cruiser
+      if(GetAttackTarget() == "NA") {//This means the target was defeated
+        $discard = &GetDiscard($defPlayer);
+        $defeatedCard = RemoveDiscard($defPlayer, count($discard)-DiscardPieces());
+        AddResources($defeatedCard, $mainPlayer, "PLAY", "DOWN");
+      }
+      break;
+    default: break;
   }
 }
 
@@ -64,6 +82,9 @@ function AttackModifier($cardID, $player, $index)
     case "3988315236"://Seasoned Shoretrooper
       $modifier += NumResources($player) >= 6 ? 2 : 0;
       break;
+    case "7922308768"://Valiant Assault Ship
+      $modifier += $player == $mainPlayer && NumResources($mainPlayer) < NumResources($defPlayer) ? 2 : 0;
+      break;
     case "6348804504"://Ardent Sympathizer
       $modifier += $initiativePlayer == $player ? 2 : 0;
       break;
@@ -77,6 +98,35 @@ function AttackModifier($cardID, $player, $index)
     case "7648077180"://97th Legion
       $modifier += NumResources($player);
       break;
+    case "8def61a58e"://Kylo Ren
+      $hand = &GetHand($player);
+      $modifier -= count($hand)/HandPieces();
+      break;
+    case "7486516061"://Concord Dawn Interceptors
+      if($player == $defPlayer && GetAttackTarget() == "THEIRALLY-" . $index) $modifier += 2;
+      break;
+    case "6769342445"://Jango Fett
+      if(IsAllyAttackTarget() && $player == $mainPlayer) {
+        $ally = new Ally(GetAttackTarget(), $defPlayer);
+        if($ally->HasBounty()) $modifier += 3;
+      }
+      break;
+    case "4511413808"://Follower of the Way
+      $ally = new Ally("MYALLY-" . $index, $player);
+      if($ally->NumUpgrades() > 0) $modifier += 1;
+      break;
+    case "58f9f2d4a0"://Dr. Aphra
+      $discard = &GetDiscard($player);
+      $costs = [];
+      for($i = 0; $i < count($discard); $i += DiscardPieces()) {
+        $cost = CardCost($discard[$i]);
+        $costs[$cost] = true;
+      }
+      if(count($costs) >= 5) $modifier += 3;
+      break;
+    case "8305828130"://Warbird Stowaway
+        $modifier += $initiativePlayer == $player ? 2 : 0;
+        break;
     default: break;
   }
   return $modifier;
@@ -263,16 +313,6 @@ function NumNonEquipmentDefended()
   for($i = 0; $i < count($combatChain); $i += CombatChainPieces()) {
     $cardType = CardType($combatChain[$i]);
     if($combatChain[$i + 1] == $defPlayer && $cardType != "E" && $cardType != "C") ++$number;
-  }
-  return $number;
-}
-
-function NumCardsDefended()
-{
-  global $combatChain, $defPlayer;
-  $number = 0;
-  for($i = 0; $i < count($combatChain); $i += CombatChainPieces()) {
-    if($combatChain[$i + 1] == $defPlayer) ++$number;
   }
   return $number;
 }

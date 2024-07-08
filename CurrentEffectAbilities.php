@@ -15,6 +15,9 @@ function EffectHitEffect($cardID)
     case "8988732248-1"://Rebel Assault
       AddCurrentTurnEffect("8988732248-2", $mainPlayer);
       break;
+    case "0802973415"://Outflank
+      AddCurrentTurnEffect("0802973415-1", $mainPlayer);
+      break;
     case "6514927936-1"://Leia Organa
       AddCurrentTurnEffectFromCombat("6514927936-2", $mainPlayer);
       break;
@@ -38,6 +41,15 @@ function FinalizeChainLinkEffects()
         PrependDecisionQueue("SETDQCONTEXT", $mainPlayer, "Choose a unit to attack with");
         PrependDecisionQueue("MZFILTER", $mainPlayer, "status=1");
         PrependDecisionQueue("MULTIZONEINDICES", $mainPlayer, "MYALLY:trait=Rebel");
+        return true;
+      case "0802973415-1"://Outflank
+        PrependDecisionQueue("SWAPTURN", $mainPlayer, "-");
+        PrependDecisionQueue("ELSE", $mainPlayer, "-");
+        PrependDecisionQueue("MZOP", $mainPlayer, "ATTACK", 1);
+        PrependDecisionQueue("MAYCHOOSEMULTIZONE", $mainPlayer, "<-", 1);
+        PrependDecisionQueue("SETDQCONTEXT", $mainPlayer, "Choose a unit to attack with");
+        PrependDecisionQueue("MZFILTER", $mainPlayer, "status=1");
+        PrependDecisionQueue("MULTIZONEINDICES", $mainPlayer, "MYALLY");
         return true;
       case "6514927936-2"://Leia Organa
         PrependDecisionQueue("SWAPTURN", $mainPlayer, "-");
@@ -73,9 +85,9 @@ function FinalizeChainLinkEffects()
   return false;
 }
 
-function EffectAttackModifier($cardID)
+function EffectAttackModifier($cardID, $playerID="")
 {
-  global $mainPlayer;
+  global $mainPlayer, $defPlayer;
   $params = explode("_", $cardID);
   if(count($params) == 1) {
     $params = explode("-", $cardID);
@@ -92,7 +104,9 @@ function EffectAttackModifier($cardID)
     case "1900571801": return 2;//Overwhelming Barrage
     case "3809048641": return 3;//Surprise Strike
     case "3038238423": return 2;//Fleet Lieutenant
+    case "9757839764": return 2;//Adelphi Patrol Wing
     case "3208391441": return -2;//Make an Opening
+    case "9999079491": return -2;//Mystic Reflection
     case "6432884726": return 2;//Steadfast Battalion
     case "8244682354": return -1;//Jyn Erso
     case "8600121285": return 1;//IG-88
@@ -110,6 +124,28 @@ function EffectAttackModifier($cardID)
     case "8988732248": return 1;//Rebel Assault
     case "7109944284": return -1* $subparam;//Luke Skywalker
     case "1885628519": return 1;//Crosshair
+    case "1480894253": return 2;//Kylo Ren
+    case "2503039837": return IsAllyAttackTarget() ? 1 : 0;//Moff Gideon Leader
+    case "4534554684": return 2;//Freetown Backup
+    case "4721657243": return 3;//Kihraxz Heavy Fighter
+    case "7171636330": return -4;//Chain Code Collector
+    case "2526288781": return 1;//Bossk
+    case "1312599620": return -3;//Smuggler's Starfighter
+    case "8107876051": return -3;//Enfy's Nest
+    case "9334480612": return 1;//Boba Fett Green Leader
+    case "6962053552": return 2;//Desperate Attack
+    case "4085341914": return 4;//Heroic Resolve
+    case "1938453783": return 2;//Armed to the Teeth
+    case "6263178121": return 2;//Kylo Ren (Killing the Past)
+    case "7578472075"://Let the Wookie Win
+      $attacker = new Ally(AttackerMZID($mainPlayer), $mainPlayer);
+      return TraitContains($attacker->CardID(), "Wookiee", $mainPlayer) ? 2 : 0;
+    case "4663781580"://Swoop Down
+      $attackTarget = GetAttackTarget();
+      if(!IsAllyAttackTarget()) return 0;
+      $ally = new Ally($attackTarget, $defPlayer);
+      $modifier = $playerID == $defPlayer ? -2 : 2;
+      return CardArenas($ally->CardID()) == "Ground" ? $modifier : 0;
     default: return 0;
   }
 }
@@ -177,6 +213,10 @@ function CurrentEffectCostModifiers($cardID, $from)
     $remove = false;
     if($currentTurnEffects[$i + 1] == $currentPlayer) {
       switch($currentTurnEffects[$i]) {
+        case "TTFREE"://Free
+          $costModifier -= 99;
+          $remove = true;
+          break;
         case "5707383130"://Bendu
           if(!AspectContains($cardID, "Heroism", $currentPlayer) && !AspectContains($cardID, "Villainy", $currentPlayer)) {
             $costModifier -= 2;
@@ -185,6 +225,10 @@ function CurrentEffectCostModifiers($cardID, $from)
           break;
         case "4919000710"://Home One
           $costModifier -= 3;
+          $remove = true;
+          break;
+        case "5351496853"://Gideon's Light Cruiser
+          $costModifier -= 99;
           $remove = true;
           break;
         case "2756312994"://Alliance Dispatcher
@@ -205,6 +249,10 @@ function CurrentEffectCostModifiers($cardID, $from)
             $remove = true;
           }
           break;
+        case "5696041568"://Triple Dark Raid
+          $costModifier -= 5;
+          $remove = true;
+          break;
         case "7870435409"://Bib Fortuna
           $costModifier -= 1;
           $remove = true;
@@ -214,6 +262,42 @@ function CurrentEffectCostModifiers($cardID, $from)
           break;
         case "8968669390"://U-Wing Reinforcement
           $costModifier -= 99;
+          break;
+        case "5440730550"://Lando Calrissian
+          $costModifier -= 2;
+          $remove = true;
+          break;
+        case "4643489029"://Palpatine's Return
+          $costModifier -= TraitContains($cardID, "Force", $player) ? 8 : 6;
+          $remove = true;
+          break;
+        case "4717189843"://A New Adventure
+          $costModifier -= 99;
+          $remove = true;
+          break;
+        case "9642863632"://Bounty Hunter Quary
+          $costModifier -= 99;
+          $remove = true;
+          break;
+        case "9226435975"://Han Solo Red
+          $costModifier -= 1;
+          $remove = true;
+          break;
+        case "0622803599-3"://Jabba the Hutt
+          if(DefinedTypesContains($cardID, "Unit", $player)) {
+            $costModifier -= 1;
+            $remove = true;
+          }
+          break;
+        case "f928681d36-3"://Jabba the Hutt Leader Unit
+          if(DefinedTypesContains($cardID, "Unit", $player)) {
+            $costModifier -= 2;
+            $remove = true;
+          }
+          break;
+        case "5576996578"://Endless Legions
+          $costModifier -= 99;
+          $remove = true;
           break;
         default: break;
       }
@@ -435,6 +519,42 @@ function CurrentEffectEndTurnAbilities()
           AddDecisionQueue("MZOP", $owner, "TAKECONTROL", 1);
         }
         break;
+      case "5696041568-2"://Triple Dark Raid
+        $allyId = SearchAlliesForUniqueID($currentTurnEffects[$i+2], $currentTurnEffects[$i+1]);
+        if($allyId > -1) {
+          $ally = new Ally("MYALLY-" . $allyId, $currentTurnEffects[$i+1]);
+          MZBounce($currentTurnEffects[$i+1], "MYALLY-" . $ally->Index());
+        }
+        break;
+      case "1910812527":
+        DealDamageAsync($currentTurnEffects[$i+1], 999999);
+        break;
+      case "6117103324"://Jetpack
+        $ally = new Ally("MYALLY-" . SearchAlliesForUniqueID($currentTurnEffects[$i+2], $currentTurnEffects[$i+1]), $currentTurnEffects[$i+1]);
+        $ally->DefeatUpgrade("8752877738");
+        break;
+      default: break;
+    }
+    if($remove) RemoveCurrentTurnEffect($i);
+  }
+}
+
+
+function CurrentEffectStartRegroupAbilities()
+{
+  global $currentTurnEffects, $mainPlayer;
+  for($i = count($currentTurnEffects) - CurrentTurnPieces(); $i >= 0; $i -= CurrentTurnPieces()) {
+    $remove = false;
+    $params = explode("_", $currentTurnEffects[$i]);
+    $cardID = $params[0];
+    if(count($params) > 1) $subparam = $params[1];
+    if(SearchCurrentTurnEffects($cardID . "-UNDER", $currentTurnEffects[$i + 1])) {
+      AddNextTurnEffect($currentTurnEffects[$i], $currentTurnEffects[$i + 1]);
+    }
+    switch($cardID) {
+      case "2522489681"://Zorii Bliss
+        PummelHit($currentTurnEffects[$i+1]);
+        break;
       default: break;
     }
     if($remove) RemoveCurrentTurnEffect($i);
@@ -478,6 +598,7 @@ function IsCombatEffectActive($cardID)
     case "2569134232": return true;//Jedha City
     case "1323728003": return true;//Electrostaff
     case "3809048641": return true;//Surprise Strike
+    case "9757839764": return true;//Adelphi Patrol Wing
     case "3038238423": return true;//Fleet Lieutenant
     case "8244682354": return true;//Jyn Erso
     case "8600121285": return true;//IG-88
@@ -491,6 +612,14 @@ function IsCombatEffectActive($cardID)
     case "3789633661": return true;//Cunning
     case "8988732248": return true;//Rebel Assault
     case "6514927936": return true;//Leia Organa
+    case "0802973415": return true;//Outflank
+    case "1480894253": return true;//Kylo Ren
+    case "2503039837": return true;//Moff Gideon Leader
+    case "4721657243": return true;//Kihraxz Heavy Fighter
+    case "7171636330": return true;//Chain Code Collector
+    case "8107876051": return true;//Enfy's Nest
+    case "7578472075": return true;//Let the Wookie Win
+    case "4663781580": return true;//Swoop Down
     default: return false;
   }
 }
@@ -503,6 +632,7 @@ function IsCombatEffectPersistent($cardID)
     case "2587711125": return true;//Disarm
     case "2569134232": return true;//Jedha City
     case "3789633661": return true;//Cunning
+    case "1480894253": return true;//Kylo Ren
     default:
       return false;
   }

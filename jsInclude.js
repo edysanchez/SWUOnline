@@ -27,17 +27,17 @@ function ShowDetail(e, imgSource) {
     "<img style='height:375px; width:523px;' src='" + imgSource + "' />":
     "<img style='height:523px; width:375px;' src='" + imgSource + "' />";
   el.style.left =
-    e.clientX < window.innerWidth / 2 ? e.clientX + 30 : e.clientX - 400;
+    (e.clientX < window.innerWidth / 2 ? e.clientX + 30 : e.clientX - 400) + 'px';
   el.style.top =
-    e.clientY > window.innerHeight / 2 ? e.clientY - 523 - 20 : e.clientY + 30;
+    (e.clientY > window.innerHeight / 2 ? e.clientY - 523 - 20 : e.clientY + 30) + 'px';
   if (parseInt(el.style.top) + 523 >= window.innerHeight) {
-    el.style.top = window.innerHeight - 530;
+    el.style.top = (window.innerHeight - 530) + 'px';
     el.style.left =
-      e.clientX < window.innerWidth / 2 ? e.clientX + 30 : e.clientX - 400;
+      (e.clientX < window.innerWidth / 2 ? e.clientX + 30 : e.clientX - 400) + 'px';
   } else if (parseInt(el.style.top) <= 0) {
-    el.style.top = 5;
+    el.style.top = '5px';
     el.style.left =
-      e.clientX < window.innerWidth / 2 ? e.clientX + 30 : e.clientX - 400;
+      (e.clientX < window.innerWidth / 2 ? e.clientX + 30 : e.clientX - 400) + 'px';
   }
   el.style.zIndex = 100000;
   el.style.display = "inline";
@@ -97,20 +97,24 @@ function SubmitInput(mode, params, fullRefresh = false) {
   xmlhttp.send();
 }
 
-function ShowPopup(name) {
-  var xmlhttp = new XMLHttpRequest();
-  xmlhttp.onreadystatechange = function () {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("popupContainer").innerHTML = this.responseText;
-      document.getElementById(name).style.display = "inline";
-    }
-  };
-  var ajaxLink =
-    "./GetPopupContent.php?gameName=" +
-    document.getElementById("gameName").value;
-  ajaxLink += "&playerID=" + document.getElementById("playerID").value;
-  ajaxLink += "&authKey=" + document.getElementById("authKey").value;
-  ajaxLink += "&popupType=" + name;
-  xmlhttp.open("GET", ajaxLink, true);
-  xmlhttp.send();
+function TogglePopup(name) {
+  if (document.getElementById(name)?.style.display == "inline") {
+    document.getElementById(name).style.display = "none"
+  } else {
+    var xmlhttp = new XMLHttpRequest();
+    xmlhttp.onreadystatechange = function () {
+      if (this.readyState == 4 && this.status == 200) {
+        document.getElementById("popupContainer").innerHTML = this.responseText;
+        document.getElementById(name).style.display = "inline";
+      }
+    };
+    var ajaxLink =
+      "./GetPopupContent.php?gameName=" +
+      document.getElementById("gameName").value;
+    ajaxLink += "&playerID=" + document.getElementById("playerID").value;
+    ajaxLink += "&authKey=" + document.getElementById("authKey").value;
+    ajaxLink += "&popupType=" + name;
+    xmlhttp.open("GET", ajaxLink, true);
+    xmlhttp.send();
+  }
 }

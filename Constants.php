@@ -15,7 +15,7 @@ function HandPieces()
 
 function DiscardPieces()
 {
-  return 1;
+  return 2;
 }
 
 //0 - Card ID
@@ -231,7 +231,7 @@ $CS_NumAttackCards = 28; //Played or blocked
 $CS_NumPlayedFromBanish = 29;
 $CS_NumAttacks = 30;
 $CS_DieRoll = 31;
-$CS_NumBloodDebtPlayed = 32;
+$CS_NumMandalorianAttacks = 32;
 $CS_NumWizardNonAttack = 33;
 $CS_LayerTarget = 34;
 $CS_NumSwordAttacks = 35;
@@ -265,6 +265,7 @@ $CS_PlayedAsInstant = 62; //If the card was played as an instant -- some things 
 $CS_AnotherWeaponGainedGoAgain = 63;
 $CS_NumContractsCompleted = 64;
 $CS_HitsWithSword = 65;
+$CS_NumClonesPlayed = 66;
 
 function SetAfterPlayedBy($player, $cardID)
 {
@@ -309,6 +310,7 @@ $CCS_CachedOverpowerActive = 31;
 $CSS_CachedNumActionBlocked = 32;
 $CCS_CachedNumDefendedFromHand = 33;
 $CCS_HitThisLink = 34;
+$CCS_FrontLineShuttle = 35;
 
 function ResetCombatChainState()
 {
@@ -318,7 +320,7 @@ function ResetCombatChainState()
   global $CCS_LinkTotalAttack, $CCS_LinkBaseAttack, $CCS_BaseAttackDefenseMax, $CCS_ResourceCostDefenseMin, $CCS_AfterLinkLayers;
   global $CCS_CachedTotalAttack, $CCS_CachedTotalBlock, $CCS_CombatDamageReplaced, $CCS_AttackUniqueID, $CCS_RequiredEquipmentBlock;
   global $mainPlayer, $defPlayer, $CCS_CachedDominateActive, $CCS_CachedNumBlockedFromHand, $CCS_IsBoosted, $CCS_AttackTargetUID, $CCS_CachedOverpowerActive, $CSS_CachedNumActionBlocked;
-  global $layers, $chainLinks, $chainLinkSummary, $CCS_CachedNumDefendedFromHand, $CCS_HitThisLink, $CCS_IsAmbush;
+  global $layers, $chainLinks, $chainLinkSummary, $CCS_CachedNumDefendedFromHand, $CCS_HitThisLink, $CCS_IsAmbush, $CCS_FrontLineShuttle;
 
   $combatChainState[$CCS_CurrentAttackGainedGoAgain] = 0;
   $combatChainState[$CCS_WeaponIndex] = -1;
@@ -350,6 +352,7 @@ function ResetCombatChainState()
   $combatChainState[$CSS_CachedNumActionBlocked] = 0;
   $combatChainState[$CCS_CachedNumDefendedFromHand] = 0;
   $combatChainState[$CCS_HitThisLink] = 0;
+  $combatChainState[$CCS_FrontLineShuttle] = 0;
   $defCharacter = &GetPlayerCharacter($defPlayer);
   for ($i = 0; $i < count($defCharacter); $i += CharacterPieces()) {
     $defCharacter[$i + 6] = 0;
@@ -405,7 +408,7 @@ function ResetChainLinkState()
   global $CCS_LinkTotalAttack, $CCS_LinkBaseAttack, $CCS_BaseAttackDefenseMax, $CCS_ResourceCostDefenseMin, $CCS_AfterLinkLayers;
   global $CCS_CachedTotalAttack, $CCS_CachedTotalBlock, $CCS_CombatDamageReplaced, $CCS_AttackUniqueID, $CCS_RequiredEquipmentBlock;
   global $CCS_CachedDominateActive, $CCS_CachedNumBlockedFromHand, $CCS_IsBoosted, $CCS_AttackTargetUID, $CCS_CachedOverpowerActive, $CSS_CachedNumActionBlocked;
-  global $CCS_CachedNumDefendedFromHand, $CCS_HitThisLink;
+  global $CCS_CachedNumDefendedFromHand, $CCS_HitThisLink, $CCS_FrontLineShuttle;
   WriteLog("The chain link was closed.");
   $combatChainState[$CCS_CurrentAttackGainedGoAgain] = 0;
   $combatChainState[$CCS_WeaponIndex] = -1;
@@ -435,6 +438,7 @@ function ResetChainLinkState()
   $combatChainState[$CSS_CachedNumActionBlocked] = 0;
   $combatChainState[$CCS_CachedNumDefendedFromHand] = 0;
   $combatChainState[$CCS_HitThisLink] = 0;
+  $combatChainState[$CCS_FrontLineShuttle] = 0;
   UnsetChainLinkBanish();
 }
 
@@ -445,12 +449,12 @@ function ResetClassState($player)
   global $CS_PreparationCounters, $CS_NextNAACardGoAgain, $CS_NumAlliesDestroyed, $CS_Num6PowBan, $CS_ResolvingLayerUniqueID, $CS_NextWizardNAAInstant;
   global $CS_ArcaneDamageTaken, $CS_NextNAAInstant, $CS_NextDamagePrevented, $CS_LastAttack, $CS_PlayCCIndex;
   global $CS_NumLeftPlay, $CS_NumMaterializations, $CS_NumFusedLightning, $CS_AfterPlayedBy, $CS_NumAttackCards, $CS_NumPlayedFromBanish;
-  global $CS_NumAttacks, $CS_DieRoll, $CS_NumBloodDebtPlayed, $CS_NumWizardNonAttack, $CS_LayerTarget, $CS_NumSwordAttacks;
+  global $CS_NumAttacks, $CS_DieRoll, $CS_NumMandalorianAttacks, $CS_NumWizardNonAttack, $CS_LayerTarget, $CS_NumSwordAttacks;
   global $CS_HitsWithWeapon, $CS_ArcaneDamagePrevention, $CS_DynCostResolved, $CS_CardsEnteredGY;
   global $CS_HighestRoll, $CS_NumAuras, $CS_AbilityIndex, $CS_AdditionalCosts, $CS_NumRedPlayed, $CS_PlayUniqueID, $CS_AlluvionUsed;
   global $CS_NumPhantasmAADestroyed, $CS_NumEventsPlayed, $CS_MaxQuellUsed, $CS_DamageDealt, $CS_ArcaneTargetsSelected, $CS_NumDragonAttacks, $CS_NumIllusionistAttacks;
   global $CS_LastDynCost, $CS_NumIllusionistActionCardAttacks, $CS_ArcaneDamageDealt, $CS_LayerPlayIndex, $CS_NumCardsPlayed, $CS_NamesOfCardsPlayed, $CS_NumBoostPlayed;
-  global $CS_PlayedAsInstant, $CS_AnotherWeaponGainedGoAgain, $CS_NumContractsCompleted, $CS_HitsWithSword, $CS_NumMelodyPlayed;
+  global $CS_PlayedAsInstant, $CS_AnotherWeaponGainedGoAgain, $CS_NumContractsCompleted, $CS_HitsWithSword, $CS_NumMelodyPlayed, $CS_NumClonesPlayed;
 
   $classState = &GetPlayerClassState($player);
   $classState[$CS_NumVillainyPlayed] = 0;
@@ -483,7 +487,7 @@ function ResetClassState($player)
   $classState[$CS_NumPlayedFromBanish] = 0;
   $classState[$CS_NumAttacks] = 0;
   $classState[$CS_DieRoll] = 0;
-  $classState[$CS_NumBloodDebtPlayed] = 0;
+  $classState[$CS_NumMandalorianAttacks] = 0;
   $classState[$CS_NumWizardNonAttack] = 0;
   $classState[$CS_LayerTarget] = "-";
   $classState[$CS_NumSwordAttacks] = 0;
@@ -517,6 +521,7 @@ function ResetClassState($player)
   $classState[$CS_AnotherWeaponGainedGoAgain] = "-";
   $classState[$CS_NumContractsCompleted] = 0;
   $classState[$CS_HitsWithSword] = 0;
+  $classState[$CS_NumClonesPlayed] = 0;
 }
 
 function ResetCharacterEffects()

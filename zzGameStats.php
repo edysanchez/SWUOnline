@@ -34,7 +34,6 @@ table {
   border-collapse: collapse;
   font-size: 1em;
   line-height: 24px;
-  text-shadow: 2px 0 0 #1a1a1a, 0 -2px 0 #1a1a1a, 0 2px 0 #1a1a1a, -2px 0 0 #1a1a1a;
   margin-left:auto;
   margin-right:auto;
 }
@@ -76,6 +75,7 @@ group by LosingHero
 ) AS internalQuery
 GROUP BY Hero
 ORDER BY Total DESC";
+$conn = GetDBConnection();
 $stmt = mysqli_stmt_init($conn);
 if (!mysqli_stmt_prepare($stmt, $sql)) {
   //header("location: ../Signup.php?error=stmtfailed");
@@ -126,6 +126,7 @@ while ($row = mysqli_fetch_array($winData, MYSQLI_NUM)) {
   for ($i = 0; $i < count($gameData) && $gameData[$i][0] != $heroID; ++$i);
   array_push($gameData[$i], $row[1]);
 }
+mysqli_close($conn);
 
 echo ("<div id='wrapper' style='text-align: center; position:relative;'>");
 
@@ -133,7 +134,6 @@ if(!$forIndividual) echo ("<section class='game-stats'>");
 echo ("<div><table>");
 echo ("<tr><td>Hero</td><td>Num Wins</td><td>Num Plays</td><td>Win %</td><td>Played %</td></tr>");
 
-echo ("<h2>CC Heroes</h2>");
 foreach ($gameData as $row) {
   //while ($row = mysqli_fetch_array($playData, MYSQLI_NUM)) {
   if(strlen($row[0]) < 8) continue;

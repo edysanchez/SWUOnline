@@ -48,10 +48,10 @@ function TextCounterColor($darkMode)
 //14 onChain = 1 if card is on combat chain (mostly for equipment)
 //15 isFrozen = 1 if frozen
 //16 shows gem = (0, 1, 2) (0 off, 1 active, 2 inactive)
-function ClientRenderedCard($cardNumber, $action = 0, $overlay = 0, $borderColor = 0, $counters = 0, $actionDataOverride = "-", $lifeCounters = 0, $defCounters = 0, $atkCounters = 0, $controller = 0, $type = "", $sType = "", $restriction = "", $isBroken = 0, $onChain = 0, $isFrozen = 0, $gem = 0, $rotate = 0, $landscape = 0)
+function ClientRenderedCard($cardNumber, $action = 0, $overlay = 0, $borderColor = 0, $counters = 0, $actionDataOverride = "-", $lifeCounters = 0, $defCounters = 0, $atkCounters = 0, $controller = 0, $type = "", $sType = "", $restriction = "", $isBroken = 0, $onChain = 0, $isFrozen = 0, $gem = 0, $rotate = 0, $landscape = 0, $epicActionUsed = 0)
 {
   $rv = $cardNumber . " " . $action . " " . $overlay . " " . $borderColor . " " . $counters . " " . $actionDataOverride . " " . $lifeCounters . " " . $defCounters . " " . $atkCounters . " ";
-  $rv .= $controller . " " . $type . " " . $sType . " " . $restriction . " " . $isBroken . " " . $onChain . " " . $isFrozen . " " . $gem . " " . $rotate . " " . $landscape;
+  $rv .= $controller . " " . $type . " " . $sType . " " . $restriction . " " . $isBroken . " " . $onChain . " " . $isFrozen . " " . $gem . " " . $rotate . " " . $landscape . " " . $epicActionUsed;
   return $rv;
 }
 
@@ -208,7 +208,7 @@ function Card($cardNumber, $folder, $maxHeight, $action = 0, $showHover = 0, $ov
   } else {
     $rv = "<a style='" . $margin . " position:relative; display:inline-block;" . ($action > 0 ? "cursor:pointer;" : "") . "'" . ($showHover > 0 ? " onmouseover='ShowCardDetail(event, this)' onmouseout='HideCardDetail()'" : "") . ($action > 0 ? " onclick='SubmitInput(\"" . $action . "\", \"&cardID=" . $actionData . "\");'" : "") . ">";
   }
-  if ($borderColor > 0) $margin = "margin-bottom:" . (7 + $subcardNum * 16) . "px; top: " . (1 + $subcardNum * 16) . "px;";
+  if ($borderColor > 0) $margin = "margin-bottom:" . (8 + $subcardNum * 16) . "px; top: " . (0 + $subcardNum * 16) . "px;";
   if ($borderColor != -1 && $from == "HASSUBCARD") $margin = "margin-bottom:" . (6 + $subcardNum * 16) . "px; top: " . ($subcardNum * 16) . "px;";
   if ($folder == "crops") $margin = "0px;";
   $rv = "<a style='" . $margin . " position:relative; display:inline-block;" . ($action > 0 ? "cursor:pointer;" : "") . "'" . ($showHover > 0 ? " onmouseover='ShowCardDetail(event, this)' onmouseout='HideCardDetail()'" : "") . ($action > 0 ? " onclick='SubmitInput(\"" . $action . "\", \"&cardID=" . $actionData . "\");'" : "") . ">";
@@ -216,7 +216,7 @@ function Card($cardNumber, $folder, $maxHeight, $action = 0, $showHover = 0, $ov
   if ($borderColor > 0) {
     $border = "border-radius:10px; border:2px solid " . BorderColorMap($borderColor) . ";";
   } else if ($folder == "concat" || $folder == "./concat" || $folder == "../concat") {
-    $border = "border-radius:8px;";
+    $border = "border-radius:10px; border:2px solid transparent;";
   } else {
     $border = "border: 1px solid transparent;";
   }
@@ -238,8 +238,8 @@ function Card($cardNumber, $folder, $maxHeight, $action = 0, $showHover = 0, $ov
   if ($controller != 0 && IsPatron($controller) && CardHasAltArt($cardNumber))
     $folderPath = "PatreonImages/" . $folderPath;
 
-  $rv .= "<img " . ($id != "" ? "id='" . $id . "-img' " : "") . "data-orientation='" . ($rotate ? "landscape' " : "portrait' ") . "class='cardImage'" . "style='{$border} height: {$height}; width: {$width}px; position:relative; border-radius:10px;' src='{$folderPath}/{$cardNumber}{$fileExt}' />";
-  $rv .= "<div " . ($id != "" ? "id='" . $id . "-ovr' " : "") . "class='overlay'" . "style='visibility:" . ($overlay == 1 ? "visible" : "hidden") . "; height: {$height}; width: {$width}px; top:0px; left:0px; position:absolute; background: rgba(0, 0, 0, 0.5); z-index: 1; border-radius: 8px;'></div>";
+  $rv .= "<img " . ($id != "" ? "id='" . $id . "-img' " : "") . "data-orientation='" . ($rotate ? "landscape' " : "portrait' ") . "class='cardImage'" . "style='{$border} height: {$height}px; width: {$width}px; position:relative; border-radius:10px;' src='{$folderPath}/{$cardNumber}{$fileExt}' />";
+  $rv .= "<div " . ($id != "" ? "id='" . $id . "-ovr' " : "") . "class='overlay'" . "style='visibility:" . ($overlay == 1 ? "visible" : "hidden") . "; height: {$height}px; width: {$width}px; top:2px; left:2px; position:absolute; background: rgba(0, 0, 0, 0.5); z-index: 1; border-radius: 8px;'></div>";
 
   // Counters Style
   $dynamicScaling = (function_exists("IsDynamicScalingEnabled") ? IsDynamicScalingEnabled($playerID) : false);
@@ -251,10 +251,10 @@ function Card($cardNumber, $folder, $maxHeight, $action = 0, $showHover = 0, $ov
   $imgCounterFontSize = 24;
   //Attacker Label Style
   if (!is_numeric($counters)) {
-    $rv .= "<div style='margin: 0px; top: 80%; left: 50%;
-    margin-right: -50%; border-radius: 7px; width: fit-content; text-align: center; line-height: 16px; height: 16px; padding: 5px; border: 3px solid " . PopupBorderColor($darkMode) . ";
-    transform: translate(-50%, -50%); position:absolute; z-index: 10; background:" . BackgroundColor($darkMode) . ";
-    font-size:14px; font-weight:800; color:" . PopupBorderColor($darkMode) . "; user-select: none;'>" . $counters . "</div>";
+    $rv .= "<div style='margin: 0px; top: 101px; left: 50%;
+    margin-right: -50%; border-radius: 0 0 8px 8px; width: 120px; text-align: center; line-height: normal; padding:10px 0 13px;
+    transform: translate(-50%, -50%); position:absolute; z-index: 10; background:rgb(0, 0, 0, 0.8);
+    font-size:16px; font-weight:600; color:white; user-select: none; line-height:normal;'>" . $counters . "</div>";
   }
 
   //Default Counters Style (Deck, Discard, Hero, Equipment)
@@ -311,7 +311,7 @@ function Card($cardNumber, $folder, $maxHeight, $action = 0, $showHover = 0, $ov
   if (isset($opts) && isset($opts['hasSentinel']) && $opts['hasSentinel']) {
     $rv .= "<div style='margin: 0px;
     top: 42px; 
-    left: 87px;
+    left: 89px;
     margin-right: -50%;
     border-radius: 0%;
     width:" . $iconSize . "px;
@@ -344,9 +344,9 @@ function Card($cardNumber, $folder, $maxHeight, $action = 0, $showHover = 0, $ov
     position:absolute; 
     z-index: 1;
     background: linear-gradient(90deg, rgba(255, 0, 0, 0.00) 0%, rgba(255, 0, 0, 0.90) 50%, #F00 100%), linear-gradient(270deg, rgba(0, 0, 0, 0.90) 0%, rgba(0, 0, 0, 0.90) 45%, rgba(0, 0, 0, 0.00) 100%);
-    line-height: 1.2;
+    line-height: 30px;
     text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.60);
-    padding: 0 0 1px 0;
+    padding: 0 0 1px 4px;
     font-size: 24px; 
     font-weight:700; 
     color: #fff;
@@ -391,7 +391,8 @@ function Card($cardNumber, $folder, $maxHeight, $action = 0, $showHover = 0, $ov
     for ($i = 0; $i < count($opts['subcards']); $i++) {
       // Don't render shield subcard
       if ($opts['subcards'][$i] != "8752877738") {
-        $rv .= "<div style='margin-top: -6px;
+        $rv .= "<div style='
+        margin: -6px 0 0 2px;
         padding-top: 1px;
         border-radius: 0%;
         width: 96px;
@@ -459,7 +460,7 @@ function BorderColorMap($code)
   }
 }
 
-function CreateButton($playerID, $caption, $mode, $input, $size = "", $image = "", $tooltip = "", $fullRefresh = false, $fullReload = false, $prompt = "", $useInput = false)
+function CreateButton($playerID, $caption, $mode, $input, $size = "", $image = "", $tooltip = "", $fullRefresh = false, $fullReload = false, $prompt = "", $useInput = false, $customOnClick = "")
 {
   global $gameName, $authKey;
 
@@ -468,6 +469,10 @@ function CreateButton($playerID, $caption, $mode, $input, $size = "", $image = "
     $onClick = "document.location.href = \"./ProcessInput2.php?gameName=$gameName&playerID=$playerID&authKey=$authKey&mode=$mode&buttonInput=$input\";";
   else
     $onClick = "SubmitInput(\"" . $mode . "\", \"&buttonInput=" . $input . "\", " . $fullRefresh . ");";
+
+  if ($customOnClick != "") {
+    $onClick = $customOnClick;  
+  }
 
   // If a prompt is given, surround the code with a "confirm()" call
   if ($prompt != "")
@@ -615,7 +620,7 @@ function CreatePopup($id, $fromArr, $canClose, $defaultState = 0, $title = "", $
     $overCC = 1001;
   }
   if ($overCombatChain) {
-    $top = "220px";
+    $top = "160px";
     $left = "calc(25% - 129px)";
     $width = "auto";
     $height = "auto";
@@ -628,7 +633,7 @@ function CreatePopup($id, $fromArr, $canClose, $defaultState = 0, $title = "", $
   if ($title != "")
     $rv .= "<h" . ($big ? "1" : "3") . " style=' font-weight: 500; margin-left: 10px; margin-top: 5px; margin-bottom: 15px; text-align: center; user-select: none;'>" . $title . "</h" . ($big ? "1" : "3") . ">";
   if ($canClose == 1)
-    $rv .= "<div style='position:absolute; top:0px; right:45px;'><div title='Click to close' style='position: fixed; cursor:pointer; font-size:50px;' onclick='(function(){ document.getElementById(\"" . $id . "\").style.display = \"none\";})();'>&#10006;</div></div>";
+    $rv .= "<div style='position:absolute; top:0px; right:54px;'><div title='Click to close' style='position: fixed; cursor:pointer; padding: 17px;' onclick='(function(){ document.getElementById(\"" . $id . "\").style.display = \"none\";})();'><img style='width: 20px; height: 20px;' src='./Images/close.png'></div></div>";
   if ($additionalComments != "")
     $rv .= "<h" . ($big ? "3" : "4") . " style='font-weight: 500; margin-left: 10px; margin-top: 5px; margin-bottom: 10px; text-align: center;'>" . $additionalComments . "</h" . ($big ? "3" : "4") . ">";
   for ($i = 0; $i < count($fromArr); $i += $arrElements) {
@@ -813,6 +818,23 @@ function PitchColor($pitch)
   }
 }
 
+function DiscardUI()
+{
+  global $turn, $currentPlayer, $playerID, $cardSize;
+  $rv = "";
+  $size = 120;
+  $discard = GetDiscard($playerID);
+  for ($i = 0; $i < count($discard); $i += DiscardPieces()) {
+    $action = $currentPlayer == $playerID && IsPlayable($discard[$i], $turn[0], "GY", $i) ? 35 : 0;
+    $border = CardBorderColor($discard[$i], "GY", $action > 0);
+    if($action > 0)
+      $rv .= Card($discard[$i], "concat", $size, $action, 1, 0, $border, 0, strval($i));
+    else
+      $rv .= Card($discard[$i], "concat", $size, 0, 1, 0, $border);
+  }
+  return $rv;
+}
+
 function ResourceUI()
 {
   global $turn, $currentPlayer, $playerID, $cardSize;
@@ -923,7 +945,7 @@ function CardBorderColor($cardID, $from, $isPlayable, $mod = "-")
     return 0;
   }
   else if ($isPlayable)
-    return 6;
+    return $mod == "THEIRS" ? 2 : 6; // red border for opponent's cards
   return 0;
 }
 
@@ -978,7 +1000,7 @@ function MainMenuUI()
   $rv .= "<img style='width: 66vh; height: 33vh;' src='./Images/ShortcutMenu.png'>";
   $isSpectateEnabled = GetCachePiece($gameName, 9) == "1";
   if ($isSpectateEnabled)
-    $rv .= "<div><input class='GameLobby_Input' onclick='copyText()' style='width:40%;' type='text' id='gameLink' value='" . $reactFE . "?gameName=$gameName&playerID=3'>&nbsp;<button class='GameLobby_Button' style='margin-left:3px;' onclick='copyText()'>Copy Spectate Link</button></div><br>";
+    $rv .= "<div><input class='GameLobby_Input' onclick='copyText()' style='width:40%;' type='text' id='gameLink' value='https://karabast.net/SWUOnline/NextTurn4?gameName=$gameName&playerID=3'>&nbsp;<button class='GameLobby_Button' style='margin-left:3px;' onclick='copyText()'>Copy Spectate Link</button></div><br>";
   else
     $rv .= CreateButton($playerID, "Enable Spectating", 100013, 0, "24px", "", "Enable Spectating", 1) . "<BR>";
   if (isset($_SESSION["userid"])) {
@@ -989,6 +1011,24 @@ function MainMenuUI()
     }
   }
   $rv .= "</td></tr></table>";
+  return $rv;
+}
+
+function LeaveGameUI() {
+  global $playerID;
+  $rv = "<div class='leave-game-wrapper'>";
+  $rv .= "<div>";
+  $rv .= "<h3>" . (IsGameOver() ? "Leave" : "Concede") . " game and return to main menu?</h3>";
+  $rv .= "<div class='leave-game-buttons'>";
+  if (IsGameOver())
+    $rv .= CreateButton($playerID, "Leave Game", 100001, 0, "24px", "", "", false, true);
+  else
+    $rv .= CreateButton($playerID, "Concede Game", 100015, 0, "24px", "", "", false, true);
+  $stayAction = "document.getElementById(\"leaveGame\").style.display = \"none\";";
+  $rv .= CreateButton($playerID, "Continue Playing", 100015, 0, "24px", "", "", false, false, "", false, $stayAction);
+  $rv .= "</div>";
+  $rv .= "</div>";
+  $rv .= "</div>";
   return $rv;
 }
 

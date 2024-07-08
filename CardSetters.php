@@ -20,7 +20,6 @@ function BanishCard(&$banish, &$classState, $cardID, $modifier, $player = "", $f
   global $CS_CardsBanished, $actionPoints, $CS_Num6PowBan, $currentPlayer, $mainPlayer;
   $rv = -1;
   if ($player == "") $player = $currentPlayer;
-  AddEvent("BANISH", ($modifier == "INT" || $modifier == "UZURI" ? "CardBack" : $cardID));
   if(CardType($cardID) != "T") { //If you banish a token, the token ceases to exist.
     $rv = count($banish);
     array_push($banish, $cardID);
@@ -170,6 +169,7 @@ function AddHand($player, $cardID)
 {
   $hand = &GetHand($player);
   array_push($hand, $cardID);
+  return count($hand) - 1;
 }
 
 function RemoveResource($player, $index)
@@ -221,7 +221,6 @@ function SetCCAttackModifier($index, $amount)
 function AddMaterial($cardID, $player, $from)
 {
   global $currentPlayer, $mainPlayer, $mainPlayerGamestateStillBuilt;
-  AddEvent("SOUL", $cardID);
   $material = &GetMaterial($player);
   array_push($material, $cardID);
 }
@@ -394,26 +393,32 @@ function AddCharacterEffect($player, $index, $effect)
   }
 }
 
-function AddGraveyard($cardID, $player, $from)
+function AddGraveyard($cardID, $player, $from, $modifier="-")
 {
   global $currentPlayer, $mainPlayer, $mainPlayerGamestateStillBuilt;
   global $myDiscard, $theirDiscard, $mainDiscard, $defDiscard;
   global $myStateBuiltFor, $CS_CardsEnteredGY;
   IncrementClassState($player, $CS_CardsEnteredGY);
   if ($mainPlayerGamestateStillBuilt) {
-    if ($player == $mainPlayer) AddSpecificGraveyard($cardID, $mainDiscard, $from, $player);
-    else AddSpecificGraveyard($cardID, $defDiscard, $from, $player);
+    if ($player == $mainPlayer) AddSpecificGraveyard($cardID, $mainDiscard, $from, $player, $modifier);
+    else AddSpecificGraveyard($cardID, $defDiscard, $from, $player, $modifier);
   } else {
-    if ($player == $myStateBuiltFor) AddSpecificGraveyard($cardID, $myDiscard, $from, $player);
-    else AddSpecificGraveyard($cardID, $theirDiscard, $from, $player);
+    if ($player == $myStateBuiltFor) AddSpecificGraveyard($cardID, $myDiscard, $from, $player, $modifier);
+    else AddSpecificGraveyard($cardID, $theirDiscard, $from, $player, $modifier);
   }
+}
+
+function RemoveDiscard($player, $index)
+{
+  return RemoveGraveyard($player, $index);
 }
 
 function RemoveGraveyard($player, $index)
 {
+  if($index == "") return "-";
   $discard = &GetDiscard($player);
   $cardID = $discard[$index];
-  unset($discard[$index]);
+  for($i=$index; $i<$index+DiscardPieces(); ++$i) { unset($discard[$i]); }
   $discard = array_values($discard);
   return $cardID;
 }
@@ -452,9 +457,11 @@ function RemoveCharacterEffects($player, $index, $effect)
   return false;
 }
 
-function AddSpecificGraveyard($cardID, &$graveyard, $from, $player)
+function AddSpecificGraveyard($cardID, &$graveyard, $from, $player, $modifier="-")
 {
+  if($cardID == "3991112153" && ($from == "HAND" || $from == "DECK")) $modifier = "TT";
   array_push($graveyard, $cardID);
+  array_push($graveyard, $modifier);
 }
 
 function NegateLayer($MZIndex, $goesWhere = "GY")

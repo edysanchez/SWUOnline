@@ -1,5 +1,12 @@
   <head>
 
+    <style>
+      @keyframes move {
+        from {margin-top: 0px;}
+        to {margin-top: -50px;}
+      }
+    </style>
+
     <?php
 
     include 'Libraries/HTTPLibraries.php';
@@ -68,7 +75,7 @@
       <meta charset="utf-8">
       <title>Karabast</title>
       <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap" rel="stylesheet">
-      <link rel="stylesheet" href="css/gamestyle.css">
+      <link rel="stylesheet" href="css/gamestyle062424.css">
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
       <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Gemunu+Libre:wght@200..800&display=swap" rel="stylesheet">
@@ -83,7 +90,7 @@
         if (event.keyCode === 32) { if(document.getElementById("passConfirm").innerText == "false" || confirm("Do you want to skip arsenal?")) SubmitInput(99, ""); } //Space = pass
         if (event.keyCode === 117) SubmitInput(10000, ""); //U = undo
         if (event.keyCode === 104) SubmitInput(3, "&cardID=0"); //H = hero ability
-        if (event.keyCode === 109) ShowPopup("menuPopup"); //M = open menu
+        if (event.keyCode === 109) TogglePopup("menuPopup"); //M = open menu
         <?php
         if (count($myCharacter) > CharacterPieces() && CardType($myCharacter[CharacterPieces()]) == "W") echo ("if(event.keyCode === 108) SubmitInput(3, '&cardID=" . CharacterPieces() . "');"); //L = left weapon
         if (count($myCharacter) > (CharacterPieces() * 2) && CardType($myCharacter[CharacterPieces() * 2]) == "W") echo ("if(event.keyCode === 114) SubmitInput(3, '&cardID=" . (CharacterPieces() * 2) . "');"); //R = right weapon
@@ -95,7 +102,7 @@
       }
 
       //Rotate is deprecated
-      function Card(cardNumber, folder, maxHeight, action = 0, showHover = 0, overlay = 0, borderColor = 0, counters = 0, actionDataOverride = "", id = "", rotate = 0, lifeCounters = 0, defCounters = 0, atkCounters = 0, controller = 0, restriction = "", isBroken = 0, onChain = 0, isFrozen = 0, gem = 0, landscape = 0) {
+      function Card(cardNumber, folder, maxHeight, action = 0, showHover = 0, overlay = 0, borderColor = 0, counters = 0, actionDataOverride = "", id = "", rotate = 0, lifeCounters = 0, defCounters = 0, atkCounters = 0, controller = 0, restriction = "", isBroken = 0, onChain = 0, isFrozen = 0, gem = 0, landscape = 0, epicActionUsed = 0) {
         if (folder == "crops") {
           cardNumber += "_cropped";
         }
@@ -125,9 +132,9 @@
         border = "";
         if (borderColor != -1) margin = borderColor > 0 ? "margin:0px;" : "margin:1px;";
         if (folder == "crops") margin = "0px;";
-        
+
         var rv = "<a style='" + margin + " position:relative; display:inline-block;" + (action > 0 ? "cursor:pointer;" : "") + "'" + (showHover > 0 ? " onmouseover='ShowCardDetail(event, this)' onmouseout='HideCardDetail()'" : "") + (action > 0 ? " onclick='SubmitInput(\"" + action + "\", \"&cardID=" + actionData + "\");'" : "") + ">";
-        
+
         if (borderColor > 0) {
           border = "border-radius:8px; border:2px solid " + BorderColorMap(borderColor) + ";";
         } else if (folder == "concat") {
@@ -135,7 +142,7 @@
         } else {
           border = "border: 1px solid transparent;";
         }
-        
+
         var orientation = landscape == 1 ? "data-orientation='landscape'" : "";
         if(rotate == 1 || landscape == 1) {
           height = (maxHeight);
@@ -158,7 +165,7 @@
         ?>
 
         rv += "<img " + (id != "" ? "id='" + id + "-img' " : "") + orientation + "style='" + border + " height:" + height + "; width:" + width + "px; position:relative;' src='./" + folderPath + "/" + cardNumber + fileExt + "' />";
-        rv += "<div " + (id != "" ? "id='" + id + "-ovr' " : "") + "style='visibility:" + (overlay == 1 ? "visible" : "hidden") + "; width:100%; height:100%; top:0px; left:0px; border-radius:10px; position:absolute; background: rgba(0, 0, 0, 0.5); z-index: 1;'></div>";
+        rv += "<div " + (id != "" ? "id='" + id + "-ovr' " : "") + "style='visibility:" + (overlay == 1 ? "visible" : "hidden") + "; width:calc(100% - 4px); height:calc(100% - 4px); top:2px; left:2px; border-radius:10px; position:absolute; background: rgba(0, 0, 0, 0.5); z-index: 1;'></div>";
 
         var darkMode = false;
         counterHeight = 28;
@@ -211,9 +218,7 @@
           //$restrictionName = CardName($restriction);
           rv += "<img title='Restricted by: " + restriction + "' style='position:absolute; z-index:100; top:26px; left:26px;' src='./Images/restricted.png' />";
         }
-        if (onChain == 1) rv += "<img title='On Combat Chain' style='pointer-events: none; position:absolute; z-index:100; width:" + 97 + "; bottom: 5px; left:0px;' src='./Images/onChain.png' />";
-        if (isBroken == 1) rv += "<img title='Equipment Broken' style='position:absolute; z-index:100; border-radius:5px; top:-3px; left:14px; height:" + 97 + "; width:" + 70 + ";' src='./Images/brokenEquip.png' />";
-        if (isFrozen == 1) rv += "<img title='Frozen' style='position:absolute; z-index:100; border-radius:5px; top:1px; left:1px; height:" + 97 + "; width:" + 97 + ";' src='./Images/frozenOverlay.png' />";
+        if (epicActionUsed == 1) rv += "<img title='Epic Action Used' style='position:absolute; z-index:100; border-radius:5px; top: -3px; right: -2px; height:26px; width:26px; filter:drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.50));' src='./Images/ExhaustToken.png' />";
         rv += "</a>";
 
         if (gem != 0) {
@@ -316,6 +321,7 @@
         var newHTML = "";
         for (var i = 0; i < zoneArr.length; ++i) {
           cardArr = zoneArr[i].split(" ");
+          var id = "-";
           var positionStyle = "relative";
           var type = cardArr[10];
           var substype = cardArr[11];
@@ -325,27 +331,30 @@
               var charLeft = GetCharacterLeft(type, substype);
               var charBottom = GetCharacterBottom(type, substype);
               positionStyle = "fixed; left:" + charLeft + "; bottom:" + charBottom;
+              var id = type == "W" ? "P<?php echo ($playerID); ?>BASE" : "P<?php echo ($playerID); ?>LEADER";
             } else if (zone == "theirChar") {
               var charLeft = GetCharacterLeft(type, substype);
               var charTop = GetCharacterTop(type, substype);
               positionStyle = "fixed; left:" + charLeft + "; top:" + charTop;
+              var id = type == "W" ? "P<?php echo ($playerID == 1 ? 2 : 1); ?>BASE" : "P<?php echo ($playerID == 1 ? 2 : 1); ?>LEADER";
             }
           }
-          newHTML += "<span style='position:" + positionStyle + "; margin:1px;'>";
+          if(id != "-") newHTML += "<span id='" + id + "' style='position:" + positionStyle + "; margin:1px;'>";
+          else newHTML += "<span style='position:" + positionStyle + "; margin:1px;'>";
           if (type == "C") {
             folder = "WebpImages2";
             var mySoulCountEl = document.getElementById("mySoulCount");
             if (!!mySoulCountEl && zone == "myChar") {
               var fontColor = "#DDD";
               var borderColor = "#1a1a1a";
-              newHTML += "<div onclick='ShowPopup(\"mySoulPopup\");' style='cursor:pointer; position:absolute; user-select: none;top:-23px; left: 17px; font-size:20px; font-weight: 600; color: " + fontColor + "; text-shadow: 2px 0 0 " + borderColor + ", 0 -2px 0 " + borderColor + ", 0 2px 0 " + borderColor + ", -2px 0 0 " + borderColor + ";'>Soul: " + mySoulCountEl.innerHTML + "</div>";
+              newHTML += "<div onclick='TogglePopup(\"mySoulPopup\");' style='cursor:pointer; position:absolute; user-select: none;top:-23px; left: 17px; font-size:20px; font-weight: 600; color: " + fontColor + "; text-shadow: 2px 0 0 " + borderColor + ", 0 -2px 0 " + borderColor + ", 0 2px 0 " + borderColor + ", -2px 0 0 " + borderColor + ";'>Soul: " + mySoulCountEl.innerHTML + "</div>";
               mySoulCountEl.innerHTML = "";
             }
             var theirSoulCountEl = document.getElementById("theirSoulCount");
             if (!!theirSoulCountEl && zone == "theirChar") {
               var fontColor = "#DDD";
               var borderColor = "#1a1a1a";
-              newHTML += "<div onclick='ShowPopup(\"theirSoulPopup\");' style='cursor:pointer; position:absolute; user-select: none; bottom:-25px; left: 17px; font-size:20px; font-weight: 600; color: " + fontColor + "; text-shadow: 2px 0 0 " + borderColor + ", 0 -2px 0 " + borderColor + ", 0 2px 0 " + borderColor + ", -2px 0 0 " + borderColor + ";'>Soul: " + theirSoulCountEl.innerHTML + "</div>";
+              newHTML += "<div onclick='TogglePopup(\"theirSoulPopup\");' style='cursor:pointer; position:absolute; user-select: none; bottom:-25px; left: 17px; font-size:20px; font-weight: 600; color: " + fontColor + "; text-shadow: 2px 0 0 " + borderColor + ", 0 -2px 0 " + borderColor + ", 0 2px 0 " + borderColor + ", -2px 0 0 " + borderColor + ";'>Soul: " + theirSoulCountEl.innerHTML + "</div>";
               theirSoulCountEl.innerHTML = "";
             }
             <?php
@@ -373,7 +382,7 @@
           var restriction = cardArr[12];
           if(typeof restriction != "string") restriction = "";
           restriction = restriction.replace(/_/g, ' ');
-          newHTML += Card(cardArr[0], folder, size, cardArr[1], 1, cardArr[2], cardArr[3], cardArr[4], cardArr[5], "", cardArr[17], cardArr[6], cardArr[7], cardArr[8], cardArr[9], restriction, cardArr[13], cardArr[14], cardArr[15], cardArr[16], cardArr[18]);
+          newHTML += Card(cardArr[0], folder, size, cardArr[1], 1, cardArr[2], cardArr[3], cardArr[4], cardArr[5], "", cardArr[17], cardArr[6], cardArr[7], cardArr[8], cardArr[9], restriction, cardArr[13], cardArr[14], cardArr[15], cardArr[16], cardArr[18], cardArr[19]);
           newHTML += "</span>";
         }
         zoneEl.innerHTML = newHTML;
@@ -404,9 +413,9 @@
       function GetCharacterBottom(cardType, cardSubType) {
         switch (cardType) {
           case "C":
-            return (cardSize * 2 + 54) + "px";
+            return "219px";
           case "W":
-            return (cardSize * 3 + 66) + "px";
+            return "329px";
           default:
             break;
         }
@@ -427,9 +436,9 @@
       function GetCharacterTop(cardType, cardSubType) {
         switch (cardType) {
           case "C":
-            return (cardSize * 2 - 6) + "px";
+            return "159px";
           case "W":
-            return (cardSize * 3 + 4) + "px";
+            return "269px";
           default:
             break;
         }
@@ -482,6 +491,7 @@
       .passButton {
         background-color: #292929;
         transition: 150ms ease-in-out;
+        margin: 0 3px 0 7px;
       }
 
       .passButton:hover {
@@ -501,8 +511,17 @@
         background-size: contain;
       }
 
+
       .claimButton {
-        background: linear-gradient(180deg, #292929 0%, #19637F 100%);
+        background: linear-gradient(180deg, #292929 0%, #292929 100%) padding-box,
+                    linear-gradient(180deg, #454545 0%, #394B51 40%, #0080ad 100%) border-box;
+        border-radius: 5px;
+        border: 1px solid transparent;
+        height:40px;
+        padding: 8px 19px 10px;
+        box-shadow: none;
+        position: relative;
+        bottom: -1px;
       }
 
       .breakChain {
@@ -542,6 +561,7 @@
       .MenuButtons {
         cursor: pointer;
         transition: 150ms ease-in-out;
+        margin-right: 6px;
       }
 
       .MenuButtons:hover {
@@ -559,11 +579,11 @@
 
   <body onkeypress='Hotkeys(event)' onload='OnLoadCallback(<?php echo (filemtime("./Games/" . $gameName . "/gamelog.txt")); ?>)'>
 
-    <?php echo (CreatePopup("inactivityWarningPopup", [], 0, 0, "⚠️ Inactivity Warning ⚠️", 1, "", "", true, true, "Interact with the screen in the next 40 seconds or you could be kicked for inactivity.")); ?>
+    <?php echo (CreatePopup("inactivityWarningPopup", [], 0, 0, "⚠️ Inactivity Warning ⚠️", 1, "", "", true, true, "Interact with the screen in the next 30 seconds or you could be kicked for inactivity.")); ?>
     <?php echo (CreatePopup("inactivePopup", [], 0, 0, "⚠️ You are Inactive ⚠️", 1, "", "", true, true, "You are inactive. Your opponent is able to claim victory. Interact with the screen to clear this.")); ?>
 
     <script>
-      var IDLE_TIMEOUT = 40; //seconds
+      var IDLE_TIMEOUT = 30; //seconds
       var _idleSecondsCounter = 0;
       var _idleState = 0; //0 = not idle, 1 = idle warning, 2 = idle
       var _lastUpdate = 0;
@@ -576,7 +596,7 @@
         if (inactivityPopup) inactivityPopup.style.display = "none";
         var inactivePopup = document.getElementById('inactivePopup');
         if (inactivePopup) inactivePopup.style.display = "none";
-        if (oldIdleState == 2) SubmitInput("100006", "");
+        if (oldIdleState == 2) SubmitInput("100005", "");
       };
 
       document.onclick = activityFunction;
@@ -602,7 +622,7 @@
             if (inactivityPopup) inactivityPopup.style.display = "none";
             var inactivePopup = document.getElementById('inactivePopup');
             if (inactivePopup) inactivePopup.style.display = "inline";
-            SubmitInput("100005", "");
+            SubmitInput("100006", "");
           }
         }
       }
@@ -624,39 +644,70 @@
               location.replace('GameLobby.php?gameName=<?php echo ($gameName); ?>&playerID=<?php echo ($playerID); ?>&authKey=<?php echo ($authKey); ?>');
             } else if (parseInt(this.responseText) != 0) {
               HideCardDetail();
-              var responseArr = this.responseText.split("ENDTIMESTAMP");
-              document.getElementById("mainDiv").innerHTML = responseArr[1];
+              var responseArr = this.responseText.split("GSDELIM");
               var update = parseInt(responseArr[0]);
               if (update != "NaN") CheckReloadNeeded(update);
               if(update < _lastUpdate) return;
+              //An update was received, begin processing it
               _lastUpdate = update;
 
-              var readyIcon = document.getElementById("iconHolder").innerText;
-              document.getElementById("icon").href = "./Images/" + readyIcon;
-              var log = document.getElementById('gamelog');
-              if (log !== null) log.scrollTop = log.scrollHeight;
-              if (readyIcon == "ready.png") {
-                try {
-                  var audio = document.getElementById('yourTurnSound');
-                  <?php if (!IsMuted($playerID)) echo ("audio.play();");
-                  ?>
-                } catch (e) {
-
+              //Handle events; they may need a delay in the card rendering
+              var events = responseArr[1];
+              if(<?php echo(AreAnimationsDisabled($playerID) ? 'false' : 'events != ""'); ?>) {
+                var eventsArr = events.split("~");
+                if(eventsArr.length > 0) {
+                  var popup = document.getElementById("CHOOSEMULTIZONE");
+                  if(!popup) popup = document.getElementById("MAYCHOOSEMULTIZONE");
+                  if(popup) popup.style.display = "none";
+                  var timeoutAmount = 0;
+                  for(var i=0; i<eventsArr.length; i+=2) {
+                    var eventType = eventsArr[i];//DAMAGE
+                    if(eventType == "DAMAGE") {
+                      var eventArr = eventsArr[i+1].split("!");
+                      //Now do the animation
+                      if(eventArr[0] == "P1BASE" || eventArr[0] == "P2BASE") var element = document.getElementById(eventArr[0]);
+                      else var element = document.getElementById("unique-" + eventArr[0]);
+                      if(!!element) {
+                        if(timeoutAmount < 500) timeoutAmount = 500;
+                        element.innerHTML += "<div class='dmg-animation' style='position:absolute; text-align:center; font-size:36px; top: 0px; left:-2px; width:100%; height: calc(100% - 8px); padding: 0 2px; border-radius:12px; background-color:rgba(255,0,0,0.5); z-index:1000;'><div style='padding: 25px 0; width:100%; height:100%:'></div></div>";
+                        element.innerHTML += "<div style='position:absolute; text-align:center; animation-name: move; animation-duration: 0.6s; font-size:34px; font-weight: 600; text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.60); top:0px; left:0px; width:100%; height:100%; background-color:rgba(0,0,0,0); z-index:1000;'><div style='padding: 25px 0; width:100%; height:100%:'>-" + eventArr[1] + "</div></div>";
+                      }
+                    } else if(eventType == "RESTORE") {
+                      var eventArr = eventsArr[i+1].split("!");
+                      //Now do the animation
+                      if(eventArr[0] == "P1BASE" || eventArr[0] == "P2BASE") var element = document.getElementById(eventArr[0]);
+                      else var element = document.getElementById("unique-" + eventArr[0]);
+                      if(!!element) {
+                        if(timeoutAmount < 500) timeoutAmount = 500;
+                        element.innerHTML += "<div class='dmg-animation' style='position:absolute; text-align:center; font-size:36px; top: 0px; left:-2px; width:100%; height: calc(100% - 8px); padding: 0 2px; border-radius:12px; background-color:rgba(95,167,219,0.5); z-index:1000;'><div style='padding: 25px 0; width:100%; height:100%:'></div></div>";
+                        element.innerHTML += "<div style='position:absolute; text-align:center; animation-name: move; animation-duration: 0.6s; font-size:34px; font-weight: 600; text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.60); top:0px; left:0px; width:100%; height:100%; background-color:rgba(0,0,0,0); z-index:1000;'><div style='padding: 25px 0; width:100%; height:100%:'>+" + eventArr[1] + "</div></div>";
+                      }
+                    } else if(eventType == "EXHAUST") {
+                      var eventArr = eventsArr[i+1].split("!");
+                      //Now do the animation
+                      if(eventArr[0] == "P1BASE" || eventArr[0] == "P2BASE") var element = document.getElementById(eventArr[0]);
+                      else var element = document.getElementById("unique-" + eventArr[0]);
+                      const timing = {
+                          duration: 60,
+                          iterations: 1,
+                        };
+                        const exhaustAnimation = [
+                        { transform: "rotate(0deg) scale(1)" },
+                        { transform: "rotate(5deg) scale(1)" },
+                      ];
+                      if(!!element) {
+                        if(timeoutAmount < 60) timeoutAmount = 60;
+                        element.animate(exhaustAnimation,timing);
+                        element.innerHTML += "<div style='position:absolute; text-align:center; font-size:36px; top: 0px; left:-2px; width:100%; height: calc(100% - 16px); padding: 0 2px; border-radius:12px; background-color:rgba(0,0,0,0.5);'><div style='width:100%; height:100%:'></div></div>";
+                        element.className += "exhausted";
+                      }
+                    }
+                  }
+                  if(timeoutAmount > 0) setTimeout(RenderUpdate, timeoutAmount, responseArr[2]);
+                  else RenderUpdate(responseArr[2]);
                 }
               }
-              PopulateZone("myHand", cardSize);
-              PopulateZone("theirHand", cardSize);
-              PopulateZone("myChar", cardSize);
-              PopulateZone("theirChar", cardSize);
-              var sidebarWrapper = document.getElementById("sidebarWrapper");
-              if(sidebarWrapper)
-              {
-                var sidebarWrapperWidth = sidebarWrapper.style.width;
-                var chatbox = document.getElementById("chatbox");
-                if(chatbox) chatbox.style.width = (parseInt(sidebarWrapperWidth)-10) + "px";
-                var chatText = document.getElementById("chatText");
-                if(chatText) chatText.style.width = (parseInt(sidebarWrapperWidth)-100) + "px";
-              }
+              else RenderUpdate(responseArr[2]);
             } else {
               CheckReloadNeeded(lastUpdate);
             }
@@ -668,6 +719,41 @@
         if (lastUpdate == "NaN") window.location.replace("https://www.karabast.net/game/MainMenu.php");
         else xmlhttp.open("GET", "GetNextTurn2.php?gameName=<?php echo ($gameName); ?>&playerID=<?php echo ($playerID); ?>&lastUpdate=" + lastUpdate + lastCurrentPlayer + "&authKey=<?php echo ($authKey); ?>" + dimensions, true);
         xmlhttp.send();
+      }
+
+      function RenderUpdate(updatedHTML) {
+        //Update the main div
+        document.getElementById("mainDiv").innerHTML = updatedHTML;
+
+        //Update the icon, game log, and play ready sound if needed
+        var readyIcon = document.getElementById("iconHolder").innerText;
+        document.getElementById("icon").href = "./Images/" + readyIcon;
+        var log = document.getElementById('gamelog');
+        if(log !== null) log.scrollTop = log.scrollHeight;
+        if(readyIcon == "ready.png") {
+          try {
+            var audio = document.getElementById('yourTurnSound');
+            <?php if (!IsMuted($playerID)) echo ("audio.play();");
+             ?>
+          } catch (e) {
+
+          }
+        }
+
+        //Now begin populating the cards
+        PopulateZone("myHand", cardSize);
+        PopulateZone("theirHand", cardSize);
+        PopulateZone("myChar", cardSize);
+        PopulateZone("theirChar", cardSize);
+        var sidebarWrapper = document.getElementById("sidebarWrapper");
+        if(sidebarWrapper)
+        {
+          var sidebarWrapperWidth = sidebarWrapper.style.width;
+          var chatbox = document.getElementById("chatbox");
+          if(chatbox) chatbox.style.width = (parseInt(sidebarWrapperWidth)-10) + "px";
+          var chatText = document.getElementById("chatText");
+          if(chatText) chatText.style.width = (parseInt(sidebarWrapperWidth)-100) + "px";
+        }
       }
 
       function chkSubmit(mode, count) {
@@ -702,26 +788,26 @@
     <div id='popupContainer'></div>
     <div id="cardDetail" style="z-index:100000; display:none; position:fixed;"></div>
     <div id='mainDiv' style='position:fixed; z-index:20; left:0px; top:0px; width:100%; height:100%;'></div>
-    <div id='chatbox' style='z-index:40; position:fixed; bottom:10px; right:18px; display:flex;'>
+    <div id='chatbox' style='z-index:40; position:fixed; bottom:20px; right:18px; display:flex;'>
         <?php if ($playerID != 3 && !IsChatMuted()): ?>
-            <input id='chatText' 
-                  style='background: black; color: white; font-size:16px; font-family:barlow; margin-left: 8px; height: 32px; border: 1px solid #454545; border-radius: 5px 0 0 5px;' 
-                  type='text' 
-                  name='chatText' 
-                  value='' 
-                  autocomplete='off' 
+            <input id='chatText'
+                  style='background: black; color: white; font-size:16px; font-family:barlow; margin-left: 8px; height: 32px; border: 1px solid #454545; border-radius: 5px 0 0 5px;'
+                  type='text'
+                  name='chatText'
+                  value=''
+                  autocomplete='off'
                   onkeypress='ChatKey(event)'>
-            <button style='border: 1px solid #454545; border-radius: 0 5px 5px 0; width:55px; height:32px; color: white; margin: 0 0 0 -1px; padding: 0 5px; font-size:16px; font-weight:600; box-shadow: none;' 
+            <button style='border: 1px solid #454545; border-radius: 0 5px 5px 0; width:55px; height:32px; color: white; margin: 0 0 0 -1px; padding: 0 5px; font-size:16px; font-weight:600; box-shadow: none;'
                     onclick='SubmitChat()'>Chat
             </button>
-            <button title='Disable Chat' 
-                    <?= ProcessInputLink($playerID, 26, $SET_MuteChat . "-1", fullRefresh:true); ?> 
+            <button title='Disable Chat'
+                    <?= ProcessInputLink($playerID, 26, $SET_MuteChat . "-1", fullRefresh:true); ?>
                     style='border: 1px solid #454545; color: #1a1a1a; padding: 0; box-shadow: none;'>
                 <img style='height:16px; width:16px; float:left; margin: 7px;' src='./Images/disable.png' />
             </button>
         <?php else: ?>
-            <button title='Re-enable Chat' 
-                    <?= ProcessInputLink($playerID, 26, $SET_MuteChat . "-0", fullRefresh:true); ?> 
+            <button title='Re-enable Chat'
+                    <?= ProcessInputLink($playerID, 26, $SET_MuteChat . "-0", fullRefresh:true); ?>
                     style='border: 1px solid #454545; width: 100%; padding: 0 0 4px 0; height: 32px; font: inherit; box-shadow: none;'>
                 ⌨️ Re-enable Chat
             </button>

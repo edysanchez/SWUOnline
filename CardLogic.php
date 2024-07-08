@@ -3,37 +3,63 @@
 include "CardDictionary.php";
 include "CoreLogic.php";
 
-function PummelHit($player = -1, $passable = false, $fromDQ = false)
+function PummelHit($player = -1, $passable = false, $fromDQ = false, $context="", $may=false)
 {
   global $defPlayer;
   if($player == -1) $player = $defPlayer;
+  if($context == "") $context = "Choose a card to discard";
   if($fromDQ)
   {
+    PrependDecisionQueue("CARDDISCARDED", $player, "-", 1);
     PrependDecisionQueue("ADDDISCARD", $player, "HAND", 1);
     PrependDecisionQueue("MULTIREMOVEHAND", $player, "-", 1);
-    PrependDecisionQueue("CHOOSEHAND", $player, "<-", 1);
-    PrependDecisionQueue("SETDQCONTEXT", $player, "Choose a card to discard", 1);
+    if($may) PrependDecisionQueue("MAYCHOOSEHAND", $player, "<-", 1);
+    else PrependDecisionQueue("CHOOSEHAND", $player, "<-", 1);
+    PrependDecisionQueue("SETDQCONTEXT", $player, $context, 1);
     PrependDecisionQueue("FINDINDICES", $player, "HAND", ($passable ? 1 : 0));
   }
   else {
     AddDecisionQueue("FINDINDICES", $player, "HAND", ($passable ? 1 : 0));
-    AddDecisionQueue("SETDQCONTEXT", $player, "Choose a card to discard", 1);
-    AddDecisionQueue("CHOOSEHAND", $player, "<-", 1);
+    AddDecisionQueue("SETDQCONTEXT", $player, $context, 1);
+    if($may) AddDecisionQueue("MAYCHOOSEHAND", $player, "<-", 1);
+    else AddDecisionQueue("CHOOSEHAND", $player, "<-", 1);
     AddDecisionQueue("MULTIREMOVEHAND", $player, "-", 1);
     AddDecisionQueue("ADDDISCARD", $player, "HAND", 1);
+    AddDecisionQueue("CARDDISCARDED", $player, "-", 1);
   }
 }
 
-function DefeatUpgrade($player) {
-  AddDecisionQueue("MULTIZONEINDICES", $player, "MYALLY&THEIRALLY");
+function DefeatUpgrade($player, $may = false, $search="MYALLY&THEIRALLY") {
+  AddDecisionQueue("MULTIZONEINDICES", $player, $search);
   AddDecisionQueue("SETDQCONTEXT", $player, "Choose a unit to defeat an upgrade from");
-  AddDecisionQueue("CHOOSEMULTIZONE", $player, "<-", 1);
+  if($may) AddDecisionQueue("MAYCHOOSEMULTIZONE", $player, "<-", 1);
+  else AddDecisionQueue("CHOOSEMULTIZONE", $player, "<-", 1);
   AddDecisionQueue("SETDQVAR", $player, 0, 1);
-  AddDecisionQueue("MZOP", $player, "GETSUBCARDS", 1);
+  AddDecisionQueue("MZOP", $player, "GETUPGRADES", 1);
   AddDecisionQueue("SETDQCONTEXT", $player, "Choose an upgrade to defeat");
-  AddDecisionQueue("CHOOSECARD", $player, "<-", 1);
+  if($may) AddDecisionQueue("MAYCHOOSECARD", $player, "<-", 1);
+  else AddDecisionQueue("CHOOSECARD", $player, "<-", 1);
   AddDecisionQueue("OP", $player, "DEFEATUPGRADE", 1);
+}
 
+function PlayCaptive($player, $target="")
+{
+  AddDecisionQueue("PASSPARAMETER", $player, $target);
+  AddDecisionQueue("SETDQVAR", $player, 0);
+  AddDecisionQueue("MZOP", $player, "GETCAPTIVES");
+  AddDecisionQueue("SETDQCONTEXT", $player, "Choose a captured unit to play");
+  AddDecisionQueue("CHOOSECARD", $player, "<-", 1);
+  AddDecisionQueue("OP", $player, "PLAYCAPTIVE", 1);
+}
+
+function RescueUnit($player, $target="")
+{
+  AddDecisionQueue("PASSPARAMETER", $player, $target);
+  AddDecisionQueue("SETDQVAR", $player, 0);
+  AddDecisionQueue("MZOP", $player, "GETCAPTIVES");
+  AddDecisionQueue("SETDQCONTEXT", $player, "Choose a unit to rescue");
+  AddDecisionQueue("CHOOSECARD", $player, "<-", 1);
+  AddDecisionQueue("OP", $player, "RESCUECAPTIVE", 1);
 }
 
 function HandToTopDeck($player)
@@ -511,7 +537,7 @@ function ContinueDecisionQueue($lastResult = "")
   $phase = array_shift($decisionQueue);
   $player = array_shift($decisionQueue);
   $parameter = array_shift($decisionQueue);
-  //WriteLog($phase . " " . $player . " Param:" . $parameter . " LR:" . $lastResult);//Uncomment this to visualize decision queue execution
+  // WriteLog("->" . $phase . " " . $player . " Param:" . $parameter . " LR:" . $lastResult);//Uncomment this to visualize decision queue execution
   $parameter = str_replace("{I}", $dqState[5], $parameter);
   if(count($dqVars) > 0) {
     if(str_contains($parameter, "{0}")) $parameter = str_replace("{0}", $dqVars[0], $parameter);
@@ -590,6 +616,12 @@ function ProcessTrigger($player, $parameter, $uniqueID, $target="-")
     case "AFTERPLAYABILITY":
       AllyPlayCardAbility($target, $player);
       break;
+    case "9642863632"://Bounty Hunter's Quarry
+      AddCurrentTurnEffect($parameter, $player);
+      AddDecisionQueue("MZMYDECKTOPX", $player, $target);
+      AddDecisionQueue("SETDQCONTEXT", $player, "Choose a card to play");
+      AddDecisionQueue("MAYCHOOSEMULTIZONE", $player, "<-", 1);
+      AddDecisionQueue("MZOP", $player, "PLAYCARD", 1);
     default: break;
   }
 }
@@ -652,16 +684,11 @@ function ShouldHoldPriority($player, $layerCard = "")
   return 0;
 }
 
-function GiveAttackGoAgain()
-{
-  global $combatChainState, $CCS_CurrentAttackGainedGoAgain;
-  $combatChainState[$CCS_CurrentAttackGainedGoAgain] = 1;
-}
-
 function EndTurnProcedure($player) {
   $allies = &GetAllies($player);
   for($i = 0; $i < count($allies); $i += AllyPieces()) {
-    $allies[$i+1] = 2;
+    $ally = new Ally("MYALLY-" . $i, $player);
+    $ally->Ready();
   }
   $resources = &GetResourceCards($player);
   for($i=0; $i<count($resources); $i+=ResourcePieces()) {
@@ -736,6 +763,7 @@ function DiscardCard($player, $index)
 function CardDiscarded($player, $discarded, $source = "")
 {
   global $mainPlayer;
+  AllyCardDiscarded($player, $discarded);
   AddEvent("DISCARD", $discarded);
 }
 
@@ -768,6 +796,18 @@ function HasEnergyCounters($array, $index)
     case "WTR150": case "UPR166": return $array[$index+2] > 0;
     default: return false;
   }
+}
+
+function SharesAspect($card1, $card2)
+{
+  $c1Aspects = explode(",", CardAspects($card1));
+  $c2Aspects = explode(",", CardAspects($card2));
+  for($i=0; $i<count($c1Aspects); $i++) {
+    for($j=0; $j<count($c2Aspects); $j++) {
+      if($c1Aspects[$i] == $c2Aspects[$j]) return true;
+    }
+  }
+  return false;
 }
 
 function BlackOne($player) {

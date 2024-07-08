@@ -4,7 +4,7 @@ function CheckImage($cardID, $url, $definedType, $isBack=false, $set="SOR")
 {
   $filename = "./WebpImages/" . $cardID . ".webp";
   $filename = "./WebpImages2/" . $cardID . ".webp";
-  $filenameNew = "./New Cards/" . $cardID . ".webp";
+  $filenameNew = "./UnimplementedCards/" . $cardID . ".webp";
   $concatFilename = "./concat/" . $cardID . ".webp";
   $cropFilename = "./crops/" . $cardID . "_cropped.png";
   $isNew = false;
@@ -53,11 +53,9 @@ function CheckImage($cardID, $url, $definedType, $isBack=false, $set="SOR")
     if(file_exists($filename))
     {
       echo("Attempting to convert image for " . $cardID . " to concat.<BR>");
-      try {
-        $image = imagecreatefromwebp($filename);
-      } catch(Exception $e) {
-        $image = imagecreatefrompng($filename);
-      }
+      
+      $image = imagecreatefromwebp($filename);
+      //$image = imagecreatefrompng($filename);
       
       if($definedType == "Event") {
         $imageTop = imagecrop($image, ['x' => 0, 'y' => 0, 'width' => 450, 'height' => 110]);
